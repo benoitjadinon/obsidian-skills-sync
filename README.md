@@ -1,92 +1,65 @@
-# Obsidian Sample Plugin
+# Agent Skills Hub
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+## What it does
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+Agent Skills Hub keeps your agent skills (folders with a `SKILL.md` plus optional `scripts/`, `references/`, …) in one vault folder, lists them in a `.base` with one checkbox column per agent, and syncs **real copies** of each skill folder to and from every agent's skills folder (`~/.claude/skills`, `~/.codex/skills`, `~/.hermes/skills`, project folders, …). It never uses symlinks, and it keeps no sync database: all state lives in each skill note's frontmatter.
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
+| Property (default prefix `agent-`) | Meaning |
+|---|---|
+| `agent-<id>` | Tri-state per agent. `true`: share the skill with that agent. `false`: don't share; the plugin removes (or archives) the agent's copy. Empty: undecided; the plugin never touches that agent's copy. |
+| `agent-skill-keys` | The skill's own frontmatter keys, in original order. Only these keys are written to agents' `SKILL.md`; an empty list means no frontmatter block. |
+| `agent-path` | Category path for agents with category subfolders (for example Hermes: `github` → `~/.hermes/skills/github/<skill>/`). Flat agents ignore it. |
+| `agent-folder` | Folder name to export under, when it differs from the vault folder (two different skills with the same name in different categories). |
+| `agent-conflict` | Set to `true` when a conflict was skipped, so the base's **Conflicts** view lists it. |
 
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open modal (simple)" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and outputs a Notice on click.
-- Registers a global interval which logs 'setInterval' to the console.
+## Setup
 
-## First time developing plugins?
+1. Install the plugin: copy `main.js`, `manifest.json` and `styles.css` to `<vault>/.obsidian/plugins/agent-skills-hub/`, then enable it in **Settings → Community plugins**. The plugin is desktop only.
+2. In **Settings → Agent Skills Hub**, set the **Skills folder** (default `Skills`). Each skill is a subfolder of it.
+3. Check the detected agents. On first start, every preset whose folder exists (Claude Code, Codex, Gemini CLI, OpenCode, Cursor, `~/.agents`, Hermes) is added. Add other presets, custom agents or project skills folders by path.
+4. Run the command **Create or update the skills base**. It creates the base (default `Skills/Skills.base`) or adds the missing agent columns to an existing one.
 
-Quick starting guide for new plugin devs:
+Sync runs on startup, when an agent folder changes, and shortly after you edit a skill in the vault (turn off **Sync automatically** to only sync with **Sync now** or the ribbon icon).
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `src/main.ts` to `main.js`.
-- Make changes to `src/main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+## How sync decides
 
-## Releasing new releases
+For each skill name (the union of vault skills and agent copies), only agents ticked `true` whose copy exists count as the "consensus". Agents left empty are ignored completely.
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+1. **New in an agent**: a skill found in an agent but not in the vault is imported. Agents holding it are ticked, the others stay empty. If several agents hold different versions, you pick one.
+2. **Ticked but missing**: an agent ticked `true` without a copy gets one.
+3. **Unticked**: an agent set to `false` that still has a copy loses it, if it matches the vault. If it differs, you are asked first (keep the vault version, or pull the agent's version into the vault, then remove). Agents with an archive folder get the copy moved to the archive instead.
+4. **Everything equal**: nothing happens.
+5. **Vault changed**: if the vault differs while the ticked agents agree among themselves, a newer vault copy is pushed; an older one is a conflict.
+6. **Updated by another tool**: if some ticked agents differ while the rest still match the vault, that's an external update. You are asked, or it's pulled into the vault and pushed to the other agents automatically when **Updates made by other tools** is set to pull automatically.
+7. **Several versions**: three or more distinct versions, or the vault and a single agent both changed with ambiguous dates, are a conflict.
+8. **Symlinks**: a skill folder that is a symlink is replaced by a real copy of its target, after you confirm (the target is imported into the vault first if it lives outside it).
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+Comparison is lenient: line endings, trailing whitespace and blank lines at the edges don't count, and frontmatter is compared by value, so Obsidian reformatting the YAML when you tick a checkbox isn't a change. Writes copy the winning version byte for byte.
 
-## Adding your plugin to the community plugin list
+## Conflicts
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+The conflict dialog shows each version (vault, agents, and the inferred common base) with its folder and date, the three panes side by side and a unified diff, per file. Options:
 
-## How to use
+- **Keep vault version** / **Keep <agent>**: that version wins everywhere.
+- **Apply clean merge**: offered only when a three-way merge has no overlapping changes.
+- **Edit in Obsidian**: writes `<skill>/SKILL.conflict.md` (and `<file>.conflict` for other files) with git-style markers (`<<<<<<< vault`, `||||||| base`, `=======`, `>>>>>>> <agent>`). Sync of that skill pauses while the file exists. Remove the markers and save, or run **Resolve conflict for current skill**: the result becomes the new version, is pushed to the ticked agents, and the conflict file is deleted.
+- **Open merge tool**: writes ours, base, theirs and result to a temp folder and runs the **Merge tool command**. The result is applied when the tool exits without markers left.
+- **Keep as separate skills** / **Import as separate skills**: the versions are really different skills.
+- **Skip**: nothing is changed, `agent-conflict` is set, and you are asked again on the next sync.
 
-- Clone this repo.
-- Make sure your NodeJS is at least v18 (`node --version`).
-- `npm i` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+Merge tool command examples (placeholders `{ours}`, `{base}`, `{theirs}`, `{result}`; use an absolute path if the tool isn't found):
 
-## Manually installing the plugin
+| Tool | Command |
+|---|---|
+| VS Code (default) | `code --wait --merge {ours} {theirs} {base} {result}` |
+| FileMerge | `opendiff {ours} {theirs} -ancestor {base} -merge {result}` |
+| Kaleidoscope | `ksdiff --merge --output {result} --base {base} {ours} {theirs}` |
+| Meld | `meld {ours} {base} {theirs} --output {result}` |
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+## Known limitations
 
-## Improve code quality with eslint
-
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code.
-- This project already has eslint preconfigured, you can invoke a check by running`npm run lint`
-- Together with a custom eslint [plugin](https://github.com/obsidianmd/eslint-plugin) for Obsidan specific code guidelines.
-- A GitHub action is preconfigured to automatically lint every commit on all branches.
-
-## Funding URL
-
-You can include funding URLs where people who use your plugin can financially support it.
-
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
-
-```json
-{
-	"fundingUrl": "https://buymeacoffee.com"
-}
-```
-
-If you have multiple URLs, you can also do:
-
-```json
-{
-	"fundingUrl": {
-		"Buy Me a Coffee": "https://buymeacoffee.com",
-		"GitHub Sponsor": "https://github.com/sponsors",
-		"Patreon": "https://www.patreon.com/"
-	}
-}
-```
-
-## API Documentation
-
-See https://docs.obsidian.md
+- Deletions made while Obsidian is closed are re-imported: the plugin keeps no record of what existed before. Use **Delete current skill everywhere**, or delete the skill note while Obsidian is running and confirm removing it from agents.
+- With a single ticked agent, a skill edited both in the vault and externally resolves by newest file date.
+- Binary-file conflicts can only be resolved by picking a version.
+- Desktop only (uses the file system directly).
+- Project folders are added by path, since Obsidian has no folder picker for paths outside the vault.

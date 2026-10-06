@@ -1,8 +1,53 @@
-/*
-
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
-
-If your plugin does not need CSS, delete this file.
-
-*/
+.ash-conflict {
+	width: min(1100px, 95vw);
+}
+.ash-cards {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--size-4-2);
+	margin-bottom: var(--size-4-2);
+}
+.ash-card {
+	flex: 1 1 200px;
+	padding: var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+}
+.ash-path {
+	font-family: var(--font-monospace);
+	font-size: var(--font-smallest);
+	color: var(--text-muted);
+	word-break: break-all;
+}
+.ash-panes {
+	display: flex;
+	gap: var(--size-4-2);
+}
+.ash-pane {
+	flex: 1 1 0;
+	min-width: 0;
+}
+.ash-pane pre,
+.ash-unified {
+	max-height: 320px;
+	overflow: auto;
+	font-size: var(--font-smallest);
+	white-space: pre-wrap;
+}
+.ash-add {
+	background: rgba(var(--color-green-rgb), 0.2);
+}
+.ash-del {
+	background: rgba(var(--color-red-rgb), 0.2);
+	text-decoration: line-through;
+}
+.ash-conflict .setting-item-control {
+	flex-wrap: wrap;
+	gap: var(--size-4-1);
+}
+.ash-migration-list {
+	max-height: 300px;
+	overflow: auto;
+	font-family: var(--font-monospace);
+	font-size: var(--font-smallest);
+}

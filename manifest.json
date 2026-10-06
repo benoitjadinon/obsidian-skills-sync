@@ -1,0 +1,10 @@
+{
+	"id": "agent-skills-hub",
+	"name": "Agent Skills Hub",
+	"version": "0.1.0",
+	"minAppVersion": "1.9.0",
+	"description": "Keep AI agent skills in one vault folder, toggle per-agent sharing from a Base table, and sync real copies to each agent's skills folder.",
+	"author": "Benoit Jadinon",
+	"authorUrl": "",
+	"isDesktopOnly": true
+}

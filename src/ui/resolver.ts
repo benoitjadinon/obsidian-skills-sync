@@ -16,8 +16,8 @@ export class ObsidianResolver implements Resolver {
 	async confirmMigration(items: MigrationItem[]): Promise<boolean> {
 		const fresh = items.filter((i) => !this.declined.has(i.linkPath));
 		if (fresh.length === 0) return false;
-		const ok = await new MigrationModal(this.app, items).openAndWait();
-		if (!ok) for (const i of items) this.declined.add(i.linkPath);
+		const ok = await new MigrationModal(this.app, fresh).openAndWait();
+		if (!ok) for (const i of fresh) this.declined.add(i.linkPath);
 		return ok;
 	}
 }

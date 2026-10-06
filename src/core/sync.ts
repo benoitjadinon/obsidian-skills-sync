@@ -5,7 +5,7 @@ import { importPath, planGroup } from './engine';
 import { Executor } from './executor';
 import { newSkillText } from './frontmatter';
 import { groupSkills, uniqueName } from './group';
-import type { AgentState, SkillGroup, SyncConfig } from './model';
+import type { AgentState, SkillCopy, SkillGroup, SyncConfig } from './model';
 import { VAULT } from './model';
 import { exists, scanAgent, scanVault } from './scan';
 
@@ -143,4 +143,37 @@ export async function createSkill(cfg: SyncConfig, name: string, description: st
 	const path = join(dir, 'SKILL.md');
 	await fsp.writeFile(path, newSkillText(name, description, cfg.prefix, cfg.agents.map((a) => a.id)));
 	return path;
+}
+
+export async function findAgentCopies(cfg: SyncConfig, folder: string): Promise<SkillCopy[]> {
+	const live = await liveConfig(cfg);
+	const all = (await Promise.all(live.agents.map((a) => scanAgent(a)))).flat();
+	return all.filter((c) => !c.archived && !c.symlinkTarget && c.folder === folder);
+}
+
+export async function removeFromAgents(cfg: SyncConfig, folder: string): Promise<string[]> {
+	const ex = new Executor(cfg);
+	const removed: string[] = [];
+	for (const c of await findAgentCopies(cfg, folder)) {
+		await ex.remove(c);
+		removed.push(c.dir);
+	}
+	return removed;
+}
+
+export async function deleteEverywhere(cfg: SyncConfig, name: string): Promise<string[]> {
+	const g = (await loadGroups(cfg)).find((x) => x.name === name);
+	if (!g) return [];
+	const ex = new Executor(cfg);
+	const removed: string[] = [];
+	for (const c of g.copies) {
+		if (c.archived) continue;
+		await ex.remove(c);
+		removed.push(c.dir);
+	}
+	if (g.vault) {
+		await fsp.rm(g.vault.copy.dir, { recursive: true, force: true });
+		removed.push(g.vault.copy.dir);
+	}
+	return removed;
 }

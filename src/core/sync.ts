@@ -5,6 +5,7 @@ import { importPath, planGroup } from './engine';
 import { Executor } from './executor';
 import { newSkillText } from './frontmatter';
 import { groupSkills, uniqueName } from './group';
+import { findSymlinks, migrate } from './migrate';
 import type { AgentState, SkillCopy, SkillGroup, SyncConfig } from './model';
 import { VAULT } from './model';
 import { exists, scanAgent, scanVault } from './scan';
@@ -109,6 +110,8 @@ export async function applyResolution(ex: Executor, g: SkillGroup, c: Conflict, 
 
 export async function runSync(cfg: SyncConfig, resolver: Resolver): Promise<SyncReport> {
 	const report: SyncReport = { applied: [], conflicts: 0, errors: [] };
+	const links = await findSymlinks(cfg);
+	if (links.length > 0 && (await resolver.confirmMigration(links))) await migrate(cfg, links);
 	const live = await liveConfig(cfg);
 	const ex = new Executor(cfg);
 	const labels = labelsFor(cfg);
@@ -127,6 +130,9 @@ export async function runSync(cfg: SyncConfig, resolver: Resolver): Promise<Sync
 		} catch (e) {
 			report.errors.push(`${g.name}: ${e instanceof Error ? e.message : String(e)}`);
 		}
+	}
+	for (const l of await findSymlinks(cfg)) {
+		report.errors.push(`${l.linkPath}: skill folder is a symlink; accept the migration to sync it`);
 	}
 	return report;
 }

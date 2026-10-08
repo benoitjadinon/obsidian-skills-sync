@@ -117,11 +117,27 @@ input.ash-invalid {
 	font-size: var(--font-ui-small);
 	color: var(--text-muted);
 }
+/* Agents and projects not available on this computer: clearly disabled, still editable. */
+.ash-settings .setting-item.ash-unavailable {
+	background-color: transparent;
+	border: 1px dashed var(--background-modifier-border);
+}
 .ash-settings .setting-item.ash-unavailable .setting-item-name,
 .ash-settings .setting-item.ash-unavailable .setting-item-description {
-	opacity: 0.55;
+	color: var(--text-faint);
+	opacity: 0.6;
+	filter: grayscale(1);
+}
+.ash-settings .setting-item.ash-unavailable .ash-tag:not(.ash-tag-unavailable) {
+	display: none;
+}
+.ash-tag.ash-tag-unavailable {
+	color: var(--text-faint);
+	border-style: dashed;
+	font-style: italic;
 }
 /* Base columns of agents and projects not available on this computer (marked by the plugin). */
 .bases-td.ash-unavailable {
-	opacity: 0.35;
+	opacity: 0.18;
+	filter: grayscale(1);
 }

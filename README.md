@@ -25,7 +25,7 @@ Because it's a regular Base, it's also yours to shape:
 ## Features
 
 - **One table for every skill and agent.** A ready-made Base lists your skills with one checkbox column per agent, plus views for undecided skills, unassigned skills and conflicts. Its first column, **Skill**, shows each skill's folder name and opens its `SKILL.md` when clicked (every file is named `SKILL`, so the file name alone doesn't tell skills apart). Tick a box to share a skill with that agent, untick it to remove it there.
-- **One vault, several computers.** Share your vault between computers (Obsidian Sync, git, Syncthing…) and every computer keeps its own agents in sync from the same skill notes and the same Base. Each computer only syncs the agents and projects installed on it; the others are greyed out in the Base and marked *not available here* in settings. Even dedicated skill manager apps rarely handle that.
+- **One vault, several computers.** Share your vault between computers (Obsidian Sync, git, Syncthing…) and every computer keeps its own agents in sync from the same skill notes and the same Base. Each computer only syncs the agents and projects installed on it; the others are greyed out in the Base and marked *not available on this machine* in settings. Even dedicated skill manager apps rarely handle that.
 - **Three states per agent.** Ticked: shared. Unticked: removed from that agent (or moved to its archive). Empty: undecided, so the plugin never touches that agent's copy. New agents and new skills start undecided, so adding an agent never floods it with skills.
 - **Real copies, no symlinks.** Each agent gets a plain folder it can read like any other skill. Existing symlinked setups are migrated to copies, after you confirm.
 - **Two-way sync without a database.** Edits in Obsidian are pushed to the ticked agents. Updates made by other tools inside an agent's folder (for example an agent updating its own bundled skills) are detected and offered for import into the vault and on to the other agents. All state lives in each skill's frontmatter.
@@ -116,7 +116,7 @@ IntelliJ IDEA and WebStorm need their command-line launcher: in JetBrains Toolbo
 Skills Sync is made for vaults shared between computers, for example a Mac and a Linux desktop syncing the vault with Obsidian Sync, git or Syncthing.
 
 - **One shared list of agents and projects.** Agent folders are stored as `~/…`, so the same entry works on macOS and Linux. On each computer, an agent is *available* when its skills folder exists there, and a project when its folder exists there. Use the same `~/…` paths on your computers and they just work everywhere.
-- **Each computer syncs only what is available on it.** The others are marked **Not available here** in settings, their columns are greyed out in the Base on that computer, and sync ignores them: their properties in your notes are kept, never changed.
+- **Each computer syncs only what is available on it.** The others are marked **Not available on this machine** in settings, their columns are greyed out in the Base on that computer, and sync ignores them: their properties in your notes are kept, never changed.
 - **Manage every computer from any computer.** A greyed column is still a checkbox: tick a skill for an agent that only exists on your other computer, and that computer applies it at its next sync.
 - **One Base for all computers.** The Base file is shared and never edited per computer; the greying is display only.
 - **First start on a new computer** adds the agents installed there to the shared list.

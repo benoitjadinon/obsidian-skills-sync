@@ -183,7 +183,7 @@ export class HubSettingTab extends PluginSettingTab {
 			const row = new Setting(el)
 				.setName(createFragment((f) => {
 					f.appendText(p.label);
-					if (!available) f.createSpan({ cls: 'ash-tag', text: 'Not available here' });
+					if (!available) f.createSpan({ cls: 'ash-tag ash-tag-unavailable', text: 'Not available on this machine' });
 				}))
 				.setDesc(`${p.root} · ${folders.length} skills folder${folders.length === 1 ? '' : 's'} · ${mode}`)
 				.addExtraButton((b) => b.setIcon('pencil').setTooltip('Edit').onClick(() => this.openProjectForm(p)))
@@ -242,7 +242,7 @@ export class HubSettingTab extends PluginSettingTab {
 				f.appendText(a.label);
 				const preset = inferPreset(a) !== undefined;
 				f.createSpan({ cls: `ash-tag ${preset ? 'ash-tag-preset' : 'ash-tag-custom'}`, text: preset ? 'Preset' : 'Custom' });
-				if (!available) f.createSpan({ cls: 'ash-tag', text: 'Not available here' });
+				if (!available) f.createSpan({ cls: 'ash-tag ash-tag-unavailable', text: 'Not available on this machine' });
 			});
 			const row = new Setting(el)
 				.setName(name)

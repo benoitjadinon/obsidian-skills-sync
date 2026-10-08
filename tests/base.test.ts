@@ -122,3 +122,48 @@ describe('skill link formula', () => {
 		expect(b.views[0]?.order.slice(0, 2)).toEqual(['file.name', 'formula.agent-skillfile']);
 	});
 });
+
+describe('managed view', () => {
+	const two = `views:
+  - type: table
+    name: Mine
+    order:
+      - file.name
+  - type: table
+    name: Other
+    order:
+      - file.name
+`;
+	const o = (view?: string) => ({ hubFolder: 'Skills', prefix: 'agent-', agents: [{ id: 'claude', label: 'Claude' }], view });
+	interface B { views: { name: string; order: string[] }[] }
+	it('adds columns only to the chosen view', () => {
+		const b = parse(ensureAgentColumns(two, o('Other'))) as B;
+		expect(b.views[0]?.order).toEqual(['file.name']);
+		expect(b.views[1]?.order).toContain('agent-claude');
+	});
+	it('defaults to the first table view when none (or an unknown one) is chosen', () => {
+		for (const view of [undefined, '', 'Gone']) {
+			const b = parse(ensureAgentColumns(two, o(view))) as B;
+			expect(b.views[0]?.order).toContain('agent-claude');
+			expect(b.views[1]?.order).toEqual(['file.name']);
+		}
+	});
+	it('lists table views for the selector', async () => {
+		const { listTableViews } = await import('../src/core/base');
+		expect(listTableViews(two)).toEqual(['Mine', 'Other']);
+		expect(listTableViews('not: [valid')).toEqual([]);
+	});
+});
+
+describe('isUnavailableColumn', () => {
+	it('greys agent and project columns not available here, never plugin columns or other properties', async () => {
+		const { isUnavailableColumn } = await import('../src/core/base');
+		const avail = ['claude', 'myapp'];
+		expect(isUnavailableColumn('note.agent-hermes', 'agent-', avail)).toBe(true);
+		expect(isUnavailableColumn('note.agent-claude', 'agent-', avail)).toBe(false);
+		expect(isUnavailableColumn('note.agent-myapp', 'agent-', avail)).toBe(false);
+		for (const meta of ['source', 'skill-keys', 'path', 'folder', 'conflict']) expect(isUnavailableColumn(`note.agent-${meta}`, 'agent-', avail)).toBe(false);
+		expect(isUnavailableColumn('note.description', 'agent-', avail)).toBe(false);
+		expect(isUnavailableColumn('formula.agent-skillfile', 'agent-', avail)).toBe(false);
+	});
+});

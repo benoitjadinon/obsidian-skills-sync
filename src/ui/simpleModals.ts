@@ -99,14 +99,7 @@ export class RemoveAgentModal extends Modal {
 	private removeProperties = false;
 	private done: (r: { confirmed: boolean; removeProperties: boolean }) => void = () => undefined;
 
-	constructor(
-		app: App,
-		private readonly label: string,
-		private readonly path: string,
-		private readonly property: string,
-		/** Other computers whose settings still use these columns (then the notes must keep them). */
-		private readonly usedElsewhere: string[] = [],
-	) {
+	constructor(app: App, private readonly label: string, private readonly path: string, private readonly property: string) {
 		super(app);
 	}
 
@@ -119,13 +112,11 @@ export class RemoveAgentModal extends Modal {
 
 	onOpen(): void {
 		this.setTitle(`Remove ${this.label}?`);
-		this.contentEl.createEl('p', { text: `Skills Sync stops syncing ${this.path}. The skill files in that folder are never touched.` });
+		this.contentEl.createEl('p', { text: `Skills Sync stops syncing ${this.path}, on every computer sharing this vault. The skill files in that folder are never touched.` });
 		new Setting(this.contentEl)
 			.setName(`Also remove the ${this.property} from all skill notes`)
-			.setDesc(this.usedElsewhere.length > 0
-				? `Not available: still used on ${this.usedElsewhere.join(', ')}, which shares this vault.`
-				: 'Also removes its column from the skills base. Leave off to keep your choices, for example to add it back later.')
-			.addToggle((t) => t.setValue(false).setDisabled(this.usedElsewhere.length > 0).onChange((v) => (this.removeProperties = v)));
+			.setDesc('Also removes its column from the skills base. Leave off to keep your choices, for example to add it back later.')
+			.addToggle((t) => t.setValue(false).onChange((v) => (this.removeProperties = v)));
 		new Setting(this.contentEl)
 			.addButton((b) => b.setButtonText('Cancel').onClick(() => this.close()))
 			.addButton((b) => b.setButtonText('Remove').setWarning().onClick(() => {

@@ -49,14 +49,14 @@
   - on new forms, show errors only for fields the user has touched.
 - Normalize as the user types where possible, for example `normalizeIdInput` for agent IDs.
 
-### Settings per computer
+### Vaults shared between computers
 
-- `data.json` (v2, see `core/deviceSettings.ts`) holds the shared settings plus `devices[<id>]` profiles (agents, projects, merge tool, initialized).
-- The computer id and name live in Obsidian's per-device storage (`app.loadLocalStorage('skills-sync-device')`), which is never synced.
-- `toView` gives the flat `HubSettings` the code uses. `saveSettings` re-reads the file and merges (`mergeView`), so another computer's profile that arrived through sync is kept.
-- `onExternalSettingsChange` reloads the settings.
-- The base path is a pattern; `deviceBasePath` adds the computer name.
-- Never read `settings.basePath` as a file path; use `plugin.basePath()`.
+- `data.json` (`core/settingsStore.ts`) is shared. It holds one list of agents and one of projects, with paths as `~/…`.
+- An agent or project is **available** on a computer when its folder exists there (`plugin.isAvailable`). Sync skips unavailable ones through `liveConfig`, and their note properties are never touched.
+- Saving re-reads `data.json` and merges the lists three ways by id (`mergeOnSave`). Additions from another computer are kept, while edits and removals made here win.
+- Per-computer values live in Obsidian's per-device storage (`skills-sync-local`): the merge tool, and `detected` (this computer's installed agents were added to the shared list on its first start).
+- Unavailable columns are greyed on screen only. The plugin adds the `ash-unavailable` class to `.bases-td[data-property]` cells (`isUnavailableColumn`) and re-marks them through a MutationObserver per Bases leaf, styled in `styles.css`. Plugins may not inject `<style>` elements (eslint `no-forbidden-elements`).
+- The base file is shared and never renamed. `baseView` selects the one view whose columns the plugin manages.
 
 ### Projects
 

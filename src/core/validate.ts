@@ -130,12 +130,3 @@ export function validateProjectDir(value: string): Check {
 	if (v.split('/').includes('..')) return 'Must stay inside the project.';
 	return null;
 }
-
-/** A computer's name is used in its base file name. */
-export function validateDeviceName(value: string): Check {
-	const v = value.trim();
-	if (!v) return 'Required.';
-	if (/[\\/:*?"<>|#^[\]]/.test(v)) return 'Avoid the characters \\ / : * ? " < > | # ^ [ ].';
-	if (v.length > 40) return 'Keep it under 40 characters.';
-	return null;
-}

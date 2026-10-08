@@ -1,9 +1,9 @@
 import { FileSystemAdapter, normalizePath, Notice, Plugin, TAbstractFile, TFile, TFolder } from 'obsidian';
 import { join, relative, sep } from 'path';
 import { detectPresets, expandHome, inferPreset, presetsFor } from './core/agents';
-import { type BaseOptions, defaultBase, deviceBasePath, ensureAgentColumns, removeAgentColumn } from './core/base';
-import { devicesUsingColumn, mergeView, migrateSettings, type StoredSettings, toView } from './core/deviceSettings';
-import { hostname } from 'os';
+import { type BaseOptions, defaultBase, ensureAgentColumns, isUnavailableColumn, listTableViews, removeAgentColumn } from './core/base';
+import { mergeOnSave, migrateSettings } from './core/settingsStore';
+import { existsSync } from 'fs';
 import { resolveConflictFiles } from './core/conflictFiles';
 import { hasMarkers } from './core/merge';
 import type { SyncConfig } from './core/model';
@@ -15,11 +15,15 @@ import { DEFAULT_SETTINGS, type HubSettings, HubSettingTab } from './settings';
 import { ObsidianResolver } from './ui/resolver';
 import { ConfirmModal, NewSkillModal } from './ui/simpleModals';
 
-const DEVICE_KEY = 'skills-sync-device';
+/** Per-computer settings in Obsidian's per-device storage (never synced with the vault). */
+const LOCAL_KEY = 'skills-sync-local';
+/** Where the previous version kept this computer's id (to pick up its merge tool once). */
+const OLD_DEVICE_KEY = 'skills-sync-device';
 
-/** Short host name, e.g. "mac-server" for mac-server.local. */
-function defaultDeviceName(): string {
-	return hostname().split('.')[0] || 'this computer';
+interface LocalSettings {
+	mergeCommand: string;
+	/** This computer's installed agents were already added to the shared list. */
+	detected: boolean;
 }
 
 interface MetadataTypeManager {
@@ -28,9 +32,11 @@ interface MetadataTypeManager {
 
 export default class AgentSkillsHub extends Plugin {
 	settings: HubSettings = { ...DEFAULT_SETTINGS };
-	private stored: StoredSettings = migrateSettings(null, '', '');
-	private deviceId = '';
-	private migratedFromV1 = false;
+	/** Settings as last loaded from disk (to merge with another computer's changes on save). */
+	private loaded: HubSettings = { ...DEFAULT_SETTINGS };
+	private migrated = false;
+	private observers = new Map<HTMLElement, MutationObserver>();
+	private availableCache: string[] = [];
 	private settingTab: HubSettingTab | null = null;
 	private watcher: Watcher | null = null;
 	private busy = false;
@@ -62,12 +68,17 @@ export default class AgentSkillsHub extends Plugin {
 				}
 			}
 		}
-		if (migrated) await this.saveSettings();
-		if (!this.settings.initialized) {
-			this.settings.agents = detectPresets();
-			this.settings.initialized = true;
-			await this.saveSettings();
+		// First start on this computer: add its installed agents to the shared list.
+		const local = this.local();
+		if (!local.detected) {
+			for (const a of detectPresets()) {
+				const path = expandHome(a.path);
+				if (!this.settings.agents.some((x) => x.id === a.id || expandHome(x.path) === path)) this.settings.agents.push(a);
+			}
+			this.saveLocal({ ...local, detected: true });
+			migrated = true;
 		}
+		if (migrated || this.migrated) await this.saveSettings();
 		this.resolver = new ObsidianResolver(this.app, {
 			getConfig: () => this.config(),
 			mergeCommand: () => this.settings.mergeCommand,
@@ -113,31 +124,43 @@ export default class AgentSkillsHub extends Plugin {
 	onunload(): void {
 		this.watcher?.stop();
 		if (this.vaultTimer !== null) window.clearTimeout(this.vaultTimer);
+		for (const o of this.observers.values()) o.disconnect();
+		this.observers.clear();
 	}
 
-	/** This computer's identity, kept in Obsidian's per-device storage (never synced with the vault). */
-	private device(): { id: string; name: string } {
-		const saved = this.app.loadLocalStorage(DEVICE_KEY) as { id?: string; name?: string } | null;
-		if (saved?.id) return { id: saved.id, name: saved.name || defaultDeviceName() };
-		const device = { id: crypto.randomUUID(), name: defaultDeviceName() };
-		this.app.saveLocalStorage(DEVICE_KEY, device);
-		return device;
+	private local(): LocalSettings {
+		const saved = this.app.loadLocalStorage(LOCAL_KEY) as Partial<LocalSettings> | null;
+		return { mergeCommand: saved?.mergeCommand ?? '', detected: saved?.detected ?? false };
+	}
+
+	private saveLocal(local: LocalSettings): void {
+		this.app.saveLocalStorage(LOCAL_KEY, local);
 	}
 
 	async loadSettings(): Promise<void> {
-		const raw: unknown = await this.loadData();
-		const { id, name } = this.device();
-		this.deviceId = id;
-		this.migratedFromV1 = Boolean(raw) && (raw as { version?: number }).version !== 2;
-		this.stored = migrateSettings(raw, id, name);
-		this.settings = toView(this.stored, id, name);
+		const { settings, mergeCommands, changed } = migrateSettings(await this.loadData());
+		const local = this.local();
+		// Earlier versions kept the merge tool in data.json (per computer since v2): move it here once.
+		if (!local.mergeCommand) {
+			const oldId = (this.app.loadLocalStorage(OLD_DEVICE_KEY) as { id?: string } | null)?.id ?? '';
+			const moved = mergeCommands[oldId] ?? mergeCommands[''];
+			if (moved) this.saveLocal({ ...local, mergeCommand: moved, detected: local.detected || Boolean(oldId) || '' in mergeCommands });
+		}
+		if (changed && !this.local().detected) this.saveLocal({ ...this.local(), detected: true });
+		this.migrated = changed;
+		this.settings = { ...settings, mergeCommand: this.local().mergeCommand };
+		this.loaded = structuredClone(this.settings);
 	}
 
 	async saveSettings(): Promise<void> {
-		this.app.saveLocalStorage(DEVICE_KEY, { id: this.deviceId, name: this.settings.deviceName });
-		// Merge with what is on disk now: another computer's profile may have arrived (git pull, Sync).
-		this.stored = mergeView(await this.loadData(), this.deviceId, this.settings);
-		await this.saveData(this.stored);
+		this.saveLocal({ ...this.local(), mergeCommand: this.settings.mergeCommand });
+		// Merge with what is on disk now: another computer may have added agents or projects (git pull, Sync).
+		const stored = mergeOnSave(await this.loadData(), this.loaded, this.settings);
+		await this.saveData(stored);
+		this.settings = { ...stored, mergeCommand: this.settings.mergeCommand };
+		this.loaded = structuredClone(this.settings);
+		this.migrated = false;
+		this.updateGreying();
 	}
 
 	/** data.json changed on disk (e.g. the other computer's settings arrived): reload. */
@@ -145,36 +168,73 @@ export default class AgentSkillsHub extends Plugin {
 		await this.loadSettings();
 		this.registerPropertyTypes();
 		this.restartWatcher();
+		this.updateGreying();
 		this.settingTab?.refreshIfOpen();
 	}
 
-	/** Names of the other computers whose settings still use this column. */
-	usedElsewhere(columnId: string): string[] {
-		return devicesUsingColumn(this.stored, this.deviceId, columnId);
+	/** Table views of the base file, for the view selector. */
+	async baseViews(): Promise<string[]> {
+		const file = this.app.vault.getAbstractFileByPath(this.basePath());
+		return file instanceof TFile ? listTableViews(await this.app.vault.cachedRead(file)) : [];
 	}
 
-	/** This computer's base file. */
+	/** The base file (shared by every computer). */
 	basePath(): string {
-		return normalizePath(deviceBasePath(this.settings.basePath, this.settings.deviceName));
+		return normalizePath(this.settings.basePath);
 	}
 
-	/** Rename this computer's base file (after its name or the base pattern changed). */
-	async renameBase(fromPath: string): Promise<void> {
-		const from = this.app.vault.getAbstractFileByPath(normalizePath(fromPath));
-		const to = this.basePath();
-		if (from instanceof TFile && from.path !== to && !this.app.vault.getAbstractFileByPath(to)) {
-			await this.app.fileManager.renameFile(from, to);
+	/** Whether an agent or project can sync on this computer (its folder exists here). */
+	isAvailable(item: { path?: string; root?: string }): boolean {
+		return existsSync(expandHome(item.root ?? item.path ?? ''));
+	}
+
+	/** Columns of agents and projects available on this computer. */
+	availableColumns(): string[] {
+		const s = this.settings;
+		return [
+			...s.agents.filter((a) => this.isAvailable(a)).map((a) => a.id),
+			...s.projects.filter((p) => this.isAvailable(p)).flatMap((p) => projectColumns(p, s.agents).map((c) => c.id)),
+		];
+	}
+
+	/**
+	 * Grey (on screen only) the base cells of agents and projects not available on this computer:
+	 * mark them with a class styled in styles.css, and keep marking rows Bases renders later.
+	 */
+	updateGreying(): void {
+		this.availableCache = this.availableColumns();
+		for (const leaf of this.app.workspace.getLeavesOfType('bases')) {
+			const root = leaf.view.containerEl;
+			if (!this.observers.has(root)) {
+				const observer = new MutationObserver(() => this.markCells(root));
+				observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-property'] });
+				this.observers.set(root, observer);
+			}
+			this.markCells(root);
 		}
+	}
+
+	private markCells(root: HTMLElement): void {
+		const prefix = this.settings.propPrefix;
+		for (const cell of Array.from(root.querySelectorAll<HTMLElement>('.bases-td[data-property]'))) {
+			cell.toggleClass('ash-unavailable', isUnavailableColumn(cell.getAttribute('data-property') ?? '', prefix, this.availableCache));
+		}
+	}
+
+	/** Earlier versions named the base after the computer ("skills (Mac).base"): restore the shared name. */
+	private async restoreBaseName(): Promise<void> {
+		const path = this.basePath();
+		if (this.app.vault.getAbstractFileByPath(path)) return;
+		const stem = path.replace(/\.base$/, '');
+		const old = this.app.vault.getFiles().find((f) => f.extension === 'base' && f.path.startsWith(`${stem} (`) && f.path.endsWith(').base'));
+		if (old) await this.app.fileManager.renameFile(old, path);
 	}
 
 	private async startup(): Promise<void> {
-		// Upgrading from one shared base: it becomes this computer's base.
-		if (this.migratedFromV1) {
-			await this.saveSettings();
-			await this.renameBase(normalizePath(this.settings.basePath));
-			this.migratedFromV1 = false;
-		}
+		await this.restoreBaseName();
 		this.registerPropertyTypes();
+		this.updateGreying();
+		this.registerEvent(this.app.workspace.on('layout-change', () => this.updateGreying()));
 		if (!this.settings.autoSync) return;
 		await this.sync();
 		this.restartWatcher();
@@ -348,7 +408,7 @@ export default class AgentSkillsHub extends Plugin {
 
 	async ensureBase(open = false): Promise<void> {
 		const s = this.settings;
-		const opts = { hubFolder: normalizePath(s.hubFolder), prefix: s.propPrefix, agents: this.columns() };
+		const opts = { hubFolder: normalizePath(s.hubFolder), prefix: s.propPrefix, agents: this.columns(), view: s.baseView };
 		const path = this.basePath();
 		let file = this.app.vault.getAbstractFileByPath(path);
 		if (file instanceof TFile) {

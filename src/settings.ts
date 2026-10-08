@@ -1,7 +1,6 @@
 import { App, type DropdownComponent, FileSystemAdapter, normalizePath, Notice, PluginSettingTab, Setting, type TextComponent } from 'obsidian';
-import { existsSync } from 'fs';
 import { isAbsolute, join, relative, sep } from 'path';
-import { expandHome, inferPreset, sortAgentsForList } from './core/agents';
+import { inferPreset, sortAgentsForList } from './core/agents';
 import type { AgentConfig, ProjectConfig } from './core/model';
 import type AgentSkillsHub from './main';
 import { AgentModal } from './ui/AgentModal';
@@ -10,13 +9,15 @@ import { projectColumns, projectFolders } from './core/projects';
 import { showFieldError } from './ui/fieldErrors';
 import { addFolderBrowse } from './ui/folderPicker';
 import { MERGE_TOOL_PRESETS } from './core/externalMerge';
-import { validateBasePath, validateDeviceName, validateHubFolder, validateMergeCommand, validatePrefix } from './core/validate';
+import { validateBasePath, validateHubFolder, validateMergeCommand, validatePrefix } from './core/validate';
 import { RemoveAgentModal } from './ui/simpleModals';
 
-export { DEFAULT_SETTINGS, type HubSettings } from './core/deviceSettings';
+export { DEFAULT_SETTINGS, type HubSettings } from './core/settingsStore';
 
 export class HubSettingTab extends PluginSettingTab {
-	private baseSetting?: Setting;
+	private viewSetting?: Setting;
+	private viewDropdown?: DropdownComponent;
+	private viewRenderToken = 0;
 	constructor(app: App, private readonly plugin: AgentSkillsHub) {
 		super(app, plugin);
 	}
@@ -29,12 +30,24 @@ export class HubSettingTab extends PluginSettingTab {
 		await this.plugin.saveSettings();
 	}
 
-	private baseDesc(): string {
-		return `Vault path ending in .base; each computer gets its own file. This computer's base: ${this.plugin.basePath()}. Created if missing; an existing base gets the missing columns.`;
-	}
-
-	private refreshBaseDesc(): void {
-		this.baseSetting?.setDesc(this.baseDesc());
+	/** Fill the view selector from the base file (first table view by default). */
+	private async renderViewOptions(): Promise<void> {
+		const d = this.viewDropdown;
+		if (!d) return;
+		const s = this.plugin.settings;
+		const token = ++this.viewRenderToken;
+		const views = await this.plugin.baseViews();
+		// The tab may have re-rendered meanwhile: only the latest call fills the list.
+		if (token !== this.viewRenderToken || d !== this.viewDropdown) return;
+		d.selectEl.empty();
+		if (views.length === 0) {
+			d.addOption('', 'No base yet');
+			d.setDisabled(true);
+			return;
+		}
+		d.setDisabled(false);
+		for (const v of views) d.addOption(v, v);
+		d.setValue(views.includes(s.baseView) ? s.baseView : (views[0] ?? ''));
 	}
 
 	/** Re-render when the settings changed on disk (another computer's profile arrived). */
@@ -64,17 +77,6 @@ export class HubSettingTab extends PluginSettingTab {
 		containerEl.empty();
 		containerEl.addClass('ash-settings');
 
-		const machine = new Setting(containerEl)
-			.setName('This computer')
-			.setDesc('Agents, projects and the merge tool are set per computer, so one vault can be shared between computers. This name labels this computer\'s base file.');
-		machine.addText((t) => t.setValue(s.deviceName).onChange((v) => this.saveIfValid(machine, t, validateDeviceName(v), async () => {
-			const before = this.plugin.basePath();
-			s.deviceName = v.trim();
-			await this.plugin.saveSettings();
-			await this.plugin.renameBase(before);
-			this.refreshBaseDesc();
-		})));
-
 		let hubText: TextComponent | undefined;
 		const hub = new Setting(containerEl)
 			.setName('Skills folder')
@@ -91,16 +93,27 @@ export class HubSettingTab extends PluginSettingTab {
 		})));
 		const base = new Setting(containerEl)
 			.setName('Base file')
-			.setDesc(this.baseDesc());
-		this.baseSetting = base;
+			.setDesc('Vault path ending in .base, shared by every computer. Created if missing; an existing base gets the missing columns.');
 		base.addText((t) => t.setValue(s.basePath).onChange((v) => this.saveIfValid(base, t, validateBasePath(v), async () => {
-			const before = this.plugin.basePath();
 			s.basePath = normalizePath(v.trim());
-			await this.plugin.saveSettings();
-			await this.plugin.renameBase(before);
-			base.setDesc(this.baseDesc());
+			await this.renderViewOptions();
 		})))
-			.addButton((b) => b.setButtonText('Create or update').onClick(() => void this.plugin.ensureBase(true)));
+			.addButton((b) => b.setButtonText('Create or update').onClick(async () => {
+				await this.plugin.ensureBase(true);
+				await this.renderViewOptions();
+			}));
+		this.viewSetting = new Setting(containerEl)
+			.setName('View')
+			.setDesc('The base view that gets the agent and project columns. Your other views are left alone.')
+			.addDropdown((d) => {
+				this.viewDropdown = d;
+				d.onChange(async (v) => {
+					s.baseView = v;
+					await this.plugin.saveSettings();
+					await this.plugin.ensureBase();
+				});
+			});
+		void this.renderViewOptions();
 		new Setting(containerEl)
 			.setName('Sync automatically')
 			.setDesc('Sync on startup, when agent folders change, and when skills are edited in the vault.')
@@ -165,21 +178,25 @@ export class HubSettingTab extends PluginSettingTab {
 		}
 		for (const p of [...s.projects].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }))) {
 			const columns = projectColumns(p, s.agents);
-			const missing = existsSync(expandHome(p.root)) ? '' : ' · folder not found';
+			const available = this.plugin.isAvailable(p);
 			const mode = p.perAgentColumns ? `${columns.length} columns` : `${s.propPrefix}${p.id}`;
-			new Setting(el)
-				.setName(p.label)
-				.setDesc(`${p.root} · ${folders.length} skills folder${folders.length === 1 ? '' : 's'} · ${mode}${missing}`)
+			const row = new Setting(el)
+				.setName(createFragment((f) => {
+					f.appendText(p.label);
+					if (!available) f.createSpan({ cls: 'ash-tag', text: 'Not available here' });
+				}))
+				.setDesc(`${p.root} · ${folders.length} skills folder${folders.length === 1 ? '' : 's'} · ${mode}`)
 				.addExtraButton((b) => b.setIcon('pencil').setTooltip('Edit').onClick(() => this.openProjectForm(p)))
 				.addExtraButton((b) => b.setIcon('trash').setTooltip('Remove').onClick(async () => {
 					const property = p.perAgentColumns ? `${s.propPrefix}${p.id}-… properties` : `${s.propPrefix}${p.id} property`;
-					const r = await new RemoveAgentModal(this.app, p.label, p.root, property, [...new Set(columns.flatMap((c) => this.plugin.usedElsewhere(c.id)))]).openAndWait();
+					const r = await new RemoveAgentModal(this.app, p.label, p.root, property).openAndWait();
 					if (!r.confirmed) return;
 					s.projects = s.projects.filter((x) => x !== p);
 					await this.plugin.saveSettings();
 					if (r.removeProperties) await this.plugin.removeColumns(columns.map((c) => c.id));
 					await this.changed();
 				}));
+			row.settingEl.toggleClass('ash-unavailable', !available);
 		}
 	}
 
@@ -220,26 +237,26 @@ export class HubSettingTab extends PluginSettingTab {
 		for (const a of items) {
 			const layout = a.layout === 'nested' ? ' · category subfolders' : '';
 			const archive = a.archiveDir ? ` · archive ${a.archiveDir}` : '';
-			const missing = existsSync(expandHome(a.path)) ? '' : ' · folder not found';
+			const available = this.plugin.isAvailable(a);
 			const name = createFragment((f) => {
 				f.appendText(a.label);
-				{
-					const preset = inferPreset(a) !== undefined;
-					f.createSpan({ cls: `ash-tag ${preset ? 'ash-tag-preset' : 'ash-tag-custom'}`, text: preset ? 'Preset' : 'Custom' });
-				}
+				const preset = inferPreset(a) !== undefined;
+				f.createSpan({ cls: `ash-tag ${preset ? 'ash-tag-preset' : 'ash-tag-custom'}`, text: preset ? 'Preset' : 'Custom' });
+				if (!available) f.createSpan({ cls: 'ash-tag', text: 'Not available here' });
 			});
-			new Setting(el)
+			const row = new Setting(el)
 				.setName(name)
-				.setDesc(`${a.path}${layout}${archive} · ${s.propPrefix}${a.id}${missing}`)
+				.setDesc(`${a.path}${layout}${archive} · ${s.propPrefix}${a.id}`)
 				.addExtraButton((b) => b.setIcon('pencil').setTooltip('Edit').onClick(() => this.openForm(kind, a)))
 				.addExtraButton((b) => b.setIcon('trash').setTooltip('Remove').onClick(async () => {
-					const r = await new RemoveAgentModal(this.app, a.label, a.path, `${s.propPrefix}${a.id} property`, this.plugin.usedElsewhere(a.id)).openAndWait();
+					const r = await new RemoveAgentModal(this.app, a.label, a.path, `${s.propPrefix}${a.id} property`).openAndWait();
 					if (!r.confirmed) return;
 					s.agents = s.agents.filter((x) => x !== a);
 					await this.plugin.saveSettings();
 					if (r.removeProperties) await this.plugin.removeColumns([a.id]);
 					await this.changed();
 				}));
+			row.settingEl.toggleClass('ash-unavailable', !available);
 		}
 	}
 

@@ -4,6 +4,8 @@ export interface BaseOptions {
 	hubFolder: string;
 	prefix: string;
 	agents: { id: string; label: string }[];
+	/** View whose columns the plugin manages; empty or unknown = the first table view. */
+	view?: string;
 }
 
 export const VIEW_ALL = 'All skills';
@@ -71,8 +73,14 @@ export function ensureAgentColumns(text: string, o: BaseOptions): string {
 	if (!doc.hasIn(['properties', formulaKey])) doc.setIn(['properties', formulaKey], doc.createNode({ displayName: 'Skill' }));
 	const views = doc.get('views');
 	if (isSeq(views)) {
+		const tables = views.items.filter((v) => isMap(v) && v.get('type') === 'table');
+		const managed = tables.find((v) => isMap(v) && o.view && v.get('name') === o.view) ?? tables[0];
 		for (const view of views.items) {
 			if (!isMap(view) || view.get('type') !== 'table') continue;
+			const name = view.get('name');
+			if (name === VIEW_UNDECIDED) view.set('filters', doc.createNode(undecided(o)));
+			if (name === VIEW_UNASSIGNED) view.set('filters', doc.createNode(unassigned(o)));
+			if (view !== managed) continue;
 			let order = view.get('order');
 			if (!isSeq(order)) {
 				order = doc.createNode([]);
@@ -83,9 +91,6 @@ export function ensureAgentColumns(text: string, o: BaseOptions): string {
 				if (!seen.has(formulaKey)) order.items.unshift(doc.createNode(formulaKey));
 				for (const c of columns) if (!seen.has(orderCol(o, c.id))) order.add(doc.createNode(orderCol(o, c.id)));
 			}
-			const name = view.get('name');
-			if (name === VIEW_UNDECIDED) view.set('filters', doc.createNode(undecided(o)));
-			if (name === VIEW_UNASSIGNED) view.set('filters', doc.createNode(unassigned(o)));
 		}
 	}
 	return doc.toString();
@@ -113,8 +118,28 @@ export function removeAgentColumn(text: string, remaining: BaseOptions, agentId:
 	return doc.toString();
 }
 
-/** This computer's base file: the shared pattern with the computer's name before .base. */
-export function deviceBasePath(pattern: string, deviceName: string): string {
-	const stem = pattern.endsWith('.base') ? pattern.slice(0, -'.base'.length) : pattern;
-	return `${stem} (${deviceName}).base`;
+
+/** Names of the table views of a base (for the view selector). */
+export function listTableViews(text: string): string[] {
+	try {
+		const views = parseDocument(text).get('views');
+		if (!isSeq(views)) return [];
+		return views.items.filter((v) => isMap(v) && v.get('type') === 'table').map((v) => String(isMap(v) ? v.get('name') : '')).filter(Boolean);
+	} catch {
+		return [];
+	}
+}
+
+/** The plugin's own property suffixes (never greyed). */
+const META = ['skill-keys', 'source', 'path', 'folder', 'conflict'];
+
+/**
+ * Whether a base cell's property (e.g. "note.agent-hermes") is an agent or project column that is
+ * not available on this computer, so it should be greyed out (display only).
+ */
+export function isUnavailableColumn(property: string, prefix: string, available: string[]): boolean {
+	const p = `note.${prefix}`;
+	if (!property.startsWith(p)) return false;
+	const key = property.slice(p.length);
+	return !available.includes(key) && !META.includes(key);
 }

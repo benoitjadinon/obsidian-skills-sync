@@ -23,6 +23,10 @@ export type Action =
 	| { type: 'unarchive'; group: SkillGroup; copy: SkillCopy }
 	| { type: 'setStates'; group: SkillGroup; states: Record<string, AgentState> }
 	| { type: 'setPath'; group: SkillGroup; path: string }
+	/** Ticked in the Delete column: trash every agent copy and the vault note. */
+	| { type: 'deleteSkill'; group: SkillGroup }
+	/** Deleted on another computer: trash this computer's agent copies instead of importing them. */
+	| { type: 'trashCopies'; group: SkillGroup }
 	| { type: 'conflict'; group: SkillGroup; conflict: Conflict };
 
 const newestFirst = (cs: SkillCopy[]): SkillCopy[] => [...cs].sort((a, b) => b.mtimeMs - a.mtimeMs);
@@ -87,9 +91,13 @@ function planImport(g: SkillGroup, copies: SkillCopy[], cfg: SyncConfig): Action
 export function planGroup(g: SkillGroup, cfg: SyncConfig): Action[] {
 	const configured = new Set(cfg.agents.map((a) => a.id));
 	const copies = g.copies.filter((c) => configured.has(c.owner));
-	if (!g.vault) return planImport(g, copies, cfg);
+	if (!g.vault) {
+		if (copies.length > 0 && cfg.deleted?.includes(g.newFolder ?? g.name)) return [{ type: 'trashCopies', group: g }];
+		return planImport(g, copies, cfg);
+	}
 
 	const v = g.vault;
+	if (v.meta.delete) return [{ type: 'deleteSkill', group: g }];
 	if (v.hasConflictFile) return [];
 	const actions: Action[] = [];
 

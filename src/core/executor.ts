@@ -1,4 +1,5 @@
 import { promises as fsp } from 'fs';
+import { homedir } from 'os';
 import { dirname, isAbsolute, join, relative, resolve } from 'path';
 import { archiveRoot } from './agents';
 import type { Action } from './engine';
@@ -23,8 +24,53 @@ async function pruneEmptyDirs(dir: string): Promise<void> {
 	}
 }
 
+/** Local date folder name, e.g. 2026-10-09. */
+function today(): string {
+	const d = new Date();
+	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export class Executor {
-	constructor(private readonly cfg: SyncConfig) {}
+	/** Agent copies moved to the trash during this run. */
+	trashed = 0;
+
+	constructor(
+		private readonly cfg: SyncConfig,
+		/** Moves a vault skill to Obsidian's trash; without it, the folder goes to the trash folder too. */
+		private readonly trashVault?: (name: string) => Promise<void>,
+	) {}
+
+	/** This run's trash folder, e.g. ~/.skills-sync-trash/2026-10-09. */
+	trashFolder(): string {
+		return join(this.cfg.trashDir ?? join(homedir(), '.skills-sync-trash'), today());
+	}
+
+	/** Move a folder into the trash folder under <group>/<name>, never overwriting an earlier one. */
+	private async moveToTrash(dir: string, root: string, group: string, name: string): Promise<void> {
+		assertInside(dir, root);
+		let target = join(this.trashFolder(), group, name);
+		for (let i = 2; await exists(target); i++) target = join(this.trashFolder(), group, `${name}-${i}`);
+		await fsp.mkdir(dirname(target), { recursive: true });
+		try {
+			await fsp.rename(dir, target);
+		} catch (e) {
+			if ((e as NodeJS.ErrnoException).code !== 'EXDEV') throw e;
+			await fsp.cp(dir, target, { recursive: true });
+			await fsp.rm(dir, { recursive: true, force: true });
+		}
+	}
+
+	async trashCopy(copy: SkillCopy): Promise<void> {
+		await this.moveToTrash(copy.dir, this.rootOf(copy), copy.owner, copy.folder);
+		this.trashed++;
+	}
+
+	async deleteSkill(g: SkillGroup): Promise<void> {
+		for (const c of g.copies) await this.trashCopy(c);
+		if (!g.vault) return;
+		if (this.trashVault) await this.trashVault(g.name);
+		else await this.moveToTrash(g.vault.copy.dir, this.cfg.hubDir, 'vault', g.name);
+	}
 
 	get order(): string[] {
 		return stateKeys(this.cfg.agents);
@@ -167,6 +213,11 @@ export class Executor {
 				return this.patchMeta(g, { states: action.states });
 			case 'setPath':
 				return this.patchMeta(g, { path: action.path });
+			case 'deleteSkill':
+				return this.deleteSkill(g);
+			case 'trashCopies':
+				for (const c of g.copies) await this.trashCopy(c);
+				return;
 			case 'conflict':
 				return;
 		}

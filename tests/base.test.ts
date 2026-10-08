@@ -12,8 +12,8 @@ describe('defaultBase', () => {
 		const b = parse(defaultBase(opts(['claude', 'codex']))) as Base;
 		expect(b.filters.and).toEqual(['file.inFolder("Skills")', 'file.name == "SKILL"']);
 		expect(b.properties['note.agent-claude']?.displayName).toBe('CLAUDE');
-		expect(b.views.map((v) => v.name)).toEqual(['All skills', 'Undecided', 'Unassigned', 'Conflicts']);
-		expect(b.views[0]?.order).toEqual(['formula.agent-skillfile', 'description', 'agent-claude', 'agent-codex', 'agent-source', 'agent-path']);
+		expect(b.views.map((v) => v.name)).toEqual(['All skills', 'Undecided', 'Unassigned', 'Conflicts', 'To delete']);
+		expect(b.views[0]?.order).toEqual(['formula.agent-skillfile', 'description', 'agent-claude', 'agent-codex', 'agent-source', 'agent-path', 'agent-delete']);
 		expect(b.views[1]?.filters?.or).toEqual(['note["agent-claude"] == null', 'note["agent-codex"] == null']);
 	});
 });
@@ -44,7 +44,7 @@ views:
 		expect(b.pluginVersion).toBe('1.0.0');
 		expect(b.filters.and[0]).toBe('file.folder.startsWith("AI/skills")');
 		expect(b.properties['note.agent-claude']?.displayName).toBe('CLAUDE');
-		expect(b.views[0]?.order).toEqual(['formula.agent-skillfile', 'file.name', 'name', 'description', 'agent-claude', 'agent-source']);
+		expect(b.views[0]?.order).toEqual(['formula.agent-skillfile', 'file.name', 'name', 'description', 'agent-claude', 'agent-source', 'agent-delete']);
 	});
 	it('refreshes the managed Undecided and Unassigned filters when agents are added', () => {
 		const b = parse(ensureAgentColumns(defaultBase(opts(['claude'])), opts(['claude', 'hermes']))) as Base;
@@ -78,7 +78,7 @@ views:
 	it('ensureAgentColumns treats both spellings as one column and removes duplicates', () => {
 		const out = ensureAgentColumns(messy, o(['claude', 'cursor']));
 		const b = parse(out) as B;
-		expect(b.views[0]?.order).toEqual(['formula.agent-skillfile', 'file.name', 'agent-claude', 'agent-cursor', 'note.agent-source']);
+		expect(b.views[0]?.order).toEqual(['formula.agent-skillfile', 'file.name', 'agent-claude', 'agent-cursor', 'note.agent-source', 'agent-delete']);
 		expect(ensureAgentColumns(out, o(['claude', 'cursor']))).toBe(out);
 	});
 	it('new columns use the plain spelling Obsidian writes', () => {
@@ -165,5 +165,24 @@ describe('isUnavailableColumn', () => {
 		for (const meta of ['source', 'skill-keys', 'path', 'folder', 'conflict']) expect(isUnavailableColumn(`note.agent-${meta}`, 'agent-', avail)).toBe(false);
 		expect(isUnavailableColumn('note.description', 'agent-', avail)).toBe(false);
 		expect(isUnavailableColumn('formula.agent-skillfile', 'agent-', avail)).toBe(false);
+	});
+});
+
+describe('Delete column', () => {
+	const o = (ids: string[]) => ({ hubFolder: 'Skills', prefix: 'agent-', agents: ids.map((id) => ({ id, label: id })) });
+	interface B { properties: Record<string, { displayName: string }>; views: { name: string; order: string[]; filters?: { and?: string[] } }[] }
+	it('is the last column of a new base, with a To delete view', () => {
+		const b = parse(defaultBase(o(['claude']))) as B;
+		expect(b.views[0]?.order.at(-1)).toBe('agent-delete');
+		expect(b.properties['note.agent-delete']?.displayName).toBe('Delete');
+		expect(b.views.find((v) => v.name === 'To delete')?.filters?.and).toEqual(['note["agent-delete"] == true']);
+	});
+	it('stays last when the base is updated with new agents', () => {
+		const first = ensureAgentColumns('views:\n  - type: table\n    name: T\n    order:\n      - file.name\n', o(['claude']));
+		expect((parse(first) as B).views[0]?.order.at(-1)).toBe('agent-delete');
+		const second = ensureAgentColumns(first, o(['claude', 'codex']));
+		const order = (parse(second) as B).views[0]?.order ?? [];
+		expect(order.at(-1)).toBe('agent-delete');
+		expect(order).toContain('agent-codex');
 	});
 });

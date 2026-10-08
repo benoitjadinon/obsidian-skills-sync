@@ -12,6 +12,7 @@ export const VIEW_ALL = 'All skills';
 export const VIEW_UNDECIDED = 'Undecided';
 export const VIEW_UNASSIGNED = 'Unassigned';
 export const VIEW_CONFLICTS = 'Conflicts';
+export const VIEW_TO_DELETE = 'To delete';
 
 /** Property id used for display names (`note.agent-x`). */
 const col = (o: BaseOptions, id: string): string => `note.${o.prefix}${id}`;
@@ -40,11 +41,12 @@ function dedupeOrder(order: YAMLSeq): Set<string> {
 }
 
 export function defaultBase(o: BaseOptions): string {
-	const order = [`formula.${skillFormulaId(o)}`, 'description', ...o.agents.map((a) => orderCol(o, a.id)), orderCol(o, 'source'), orderCol(o, 'path')];
+	const order = [`formula.${skillFormulaId(o)}`, 'description', ...o.agents.map((a) => orderCol(o, a.id)), orderCol(o, 'source'), orderCol(o, 'path'), orderCol(o, 'delete')];
 	const properties: Record<string, { displayName: string }> = {
 		[`formula.${skillFormulaId(o)}`]: { displayName: 'Skill' },
 		[col(o, 'source')]: { displayName: 'Source' },
 		[col(o, 'path')]: { displayName: 'Path' },
+		[col(o, 'delete')]: { displayName: 'Delete' },
 	};
 	for (const a of o.agents) properties[col(o, a.id)] = { displayName: a.label };
 	return stringify({
@@ -56,6 +58,7 @@ export function defaultBase(o: BaseOptions): string {
 			{ type: 'table', name: VIEW_UNDECIDED, filters: undecided(o), order },
 			{ type: 'table', name: VIEW_UNASSIGNED, filters: unassigned(o), order },
 			{ type: 'table', name: VIEW_CONFLICTS, filters: { and: [`${ref(o, 'conflict')} == true`] }, order },
+			{ type: 'table', name: VIEW_TO_DELETE, filters: { and: [`${ref(o, 'delete')} == true`] }, order },
 		],
 	});
 }
@@ -63,7 +66,7 @@ export function defaultBase(o: BaseOptions): string {
 /** Add missing agent and Source properties/columns to an existing base; refresh the plugin-managed views' filters. */
 export function ensureAgentColumns(text: string, o: BaseOptions): string {
 	const doc = parseDocument(text);
-	const columns = [...o.agents.map((a) => ({ id: a.id, label: a.label })), { id: 'source', label: 'Source' }];
+	const columns = [...o.agents.map((a) => ({ id: a.id, label: a.label })), { id: 'source', label: 'Source' }, { id: 'delete', label: 'Delete' }];
 	for (const c of columns) {
 		const has = doc.hasIn(['properties', col(o, c.id)]) || doc.hasIn(['properties', orderCol(o, c.id)]);
 		if (!has) doc.setIn(['properties', col(o, c.id)], doc.createNode({ displayName: c.label }));
@@ -90,6 +93,10 @@ export function ensureAgentColumns(text: string, o: BaseOptions): string {
 				const seen = dedupeOrder(order);
 				if (!seen.has(formulaKey)) order.items.unshift(doc.createNode(formulaKey));
 				for (const c of columns) if (!seen.has(orderCol(o, c.id))) order.add(doc.createNode(orderCol(o, c.id)));
+				// The Delete column stays last.
+				const del = orderCol(o, 'delete');
+				const idx = order.items.findIndex((i) => bare(keyOf(i)) === del);
+				if (idx >= 0 && idx !== order.items.length - 1) order.items.push(...order.items.splice(idx, 1));
 			}
 		}
 	}
@@ -131,7 +138,7 @@ export function listTableViews(text: string): string[] {
 }
 
 /** The plugin's own property suffixes (never greyed). */
-const META = ['skill-keys', 'source', 'path', 'folder', 'conflict'];
+const META = ['skill-keys', 'source', 'path', 'folder', 'conflict', 'delete'];
 
 /**
  * Whether a base cell's property (e.g. "note.agent-hermes") is an agent or project column that is

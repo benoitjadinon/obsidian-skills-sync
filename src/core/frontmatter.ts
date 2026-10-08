@@ -16,7 +16,7 @@ export interface ParsedFm {
 	body: string;
 }
 
-export const RESERVED = ['skill-keys', 'source', 'path', 'folder', 'conflict'];
+export const RESERVED = ['skill-keys', 'source', 'path', 'folder', 'conflict', 'delete'];
 
 const OPEN_RE = /^---[ \t]*\r?\n/;
 const CLOSE_RE = /^(?:---|\.\.\.)[ \t]*$/;
@@ -89,7 +89,7 @@ function boolValue(v: string): AgentState {
 }
 
 export function emptyMeta(): PluginMeta {
-	return { states: {}, skillKeys: null, path: '', folder: '', conflict: false, sources: null };
+	return { states: {}, skillKeys: null, path: '', folder: '', conflict: false, delete: false, sources: null };
 }
 
 export function readMeta(text: string, prefix: string): PluginMeta {
@@ -102,6 +102,7 @@ export function readMeta(text: string, prefix: string): PluginMeta {
 		else if (sub === 'path') meta.path = unquote(firstLineValue(e));
 		else if (sub === 'folder') meta.folder = unquote(firstLineValue(e));
 		else if (sub === 'conflict') meta.conflict = boolValue(firstLineValue(e)) === true;
+		else if (sub === 'delete') meta.delete = boolValue(firstLineValue(e)) === true;
 		else meta.states[sub] = boolValue(firstLineValue(e));
 	}
 	return meta;
@@ -122,6 +123,7 @@ export function renderMeta(meta: PluginMeta, prefix: string, eol: string, agentO
 	if (meta.path) lines.push(`${prefix}path: ${scalar(meta.path)}`);
 	if (meta.folder) lines.push(`${prefix}folder: ${scalar(meta.folder)}`);
 	if (meta.conflict) lines.push(`${prefix}conflict: true`);
+	if (meta.delete) lines.push(`${prefix}delete: true`);
 	return lines.map((l) => l + eol).join('');
 }
 

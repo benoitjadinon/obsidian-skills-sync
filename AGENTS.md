@@ -58,6 +58,11 @@
 - Unavailable columns are greyed on screen only. The plugin adds the `ash-unavailable` class to `.bases-td[data-property]` cells (`isUnavailableColumn`) and re-marks them through a MutationObserver per Bases leaf, styled in `styles.css`. Plugins may not inject `<style>` elements (eslint `no-forbidden-elements`).
 - The base file is shared and never renamed. `baseView` selects the one view whose columns the plugin manages.
 
+### Deleting skills
+
+- `agent-delete: true` makes `planGroup` return `deleteSkill`. The Executor moves every agent copy to `trashDir/<date>/<owner>/<folder>`, never deleting outright. The vault folder goes through `Resolver.trashVaultSkill`, which is `fileManager.trashFile` in the app.
+- `settings.deleted` holds deleted skill names with their dates, kept for 30 days and shared between computers. Agent copies of a deleted name without a vault note become `trashCopies` instead of being imported.
+
 ### Projects
 
 - A `ProjectConfig` (`settings.projects`) holds a root folder and `perAgentColumns`. `syncTargets()` (`core/projects.ts`) expands it into one sync target per distinct agent `projectDir`.

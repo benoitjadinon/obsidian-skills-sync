@@ -1,6 +1,6 @@
 import { FileSystemAdapter, normalizePath, Notice, Plugin, TAbstractFile, TFile, TFolder } from 'obsidian';
 import { join, relative, sep } from 'path';
-import { detectPresets, expandHome, inferPreset, presetsFor } from './core/agents';
+import { contractHome, detectPresets, expandHome, inferPreset, presetsFor } from './core/agents';
 import { type BaseOptions, defaultBase, ensureAgentColumns, isUnavailableColumn, listTableViews, removeAgentColumn } from './core/base';
 import { mergeOnSave, migrateSettings } from './core/settingsStore';
 import { existsSync } from 'fs';
@@ -9,7 +9,7 @@ import { hasMarkers } from './core/merge';
 import type { SyncConfig } from './core/model';
 import { isConflictFile } from './core/scan';
 import { projectColumns, switchStates, syncTargets } from './core/projects';
-import { createSkill, deleteEverywhere, removeAgentFromNotes, resetUndecided, rewriteStates, fillMissingSources, findAgentCopies, removeFromAgents, runSync } from './core/sync';
+import { type SyncReport, createSkill, deleteEverywhere, removeAgentFromNotes, resetUndecided, rewriteStates, fillMissingSources, findAgentCopies, removeFromAgents, runSync } from './core/sync';
 import { Watcher } from './core/watcher';
 import { DEFAULT_SETTINGS, type HubSettings, HubSettingTab } from './settings';
 import { ObsidianResolver } from './ui/resolver';
@@ -83,6 +83,11 @@ export default class AgentSkillsHub extends Plugin {
 			getConfig: () => this.config(),
 			mergeCommand: () => this.settings.mergeCommand,
 			openPath: (p) => this.openAbsolute(p),
+			trashVaultSkill: async (name) => {
+				// Obsidian's own deletion: follows Settings → Files and links → Deleted files.
+				const folder = this.app.vault.getFolderByPath(normalizePath(`${this.settings.hubFolder}/${name}`));
+				if (folder) await this.app.fileManager.trashFile(folder);
+			},
 		});
 		this.settingTab = new HubSettingTab(this.app, this);
 		this.addSettingTab(this.settingTab);
@@ -264,6 +269,7 @@ export default class AgentSkillsHub extends Plugin {
 			prefix: s.propPrefix,
 			agents: syncTargets(s.agents.map((a) => ({ ...a, path: expandHome(a.path) })), s.projects),
 			autoPullExternal: s.autoPullExternal,
+			deleted: this.recentDeletions().map((d) => d.id),
 		};
 	}
 
@@ -311,11 +317,51 @@ export default class AgentSkillsHub extends Plugin {
 		await this.sync();
 	}
 
+	/** Deletions younger than 30 days: every computer trashes its copies and doesn't re-import them. */
+	private recentDeletions(): { id: string; at: string }[] {
+		const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
+		return this.settings.deleted.filter((d) => Date.parse(d.at) >= cutoff);
+	}
+
+	/** After a sync: remember deleted skills (for the other computers) and say how to restore them. */
+	private async recordDeletions(report: SyncReport): Promise<void> {
+		const recent = this.recentDeletions();
+		const at = new Date().toISOString();
+		const added = report.deleted.filter((name) => !recent.some((d) => d.id === name)).map((name) => ({ id: name, at }));
+		if (added.length > 0 || recent.length !== this.settings.deleted.length) {
+			this.settings.deleted = [...recent, ...added];
+			await this.saveSettings();
+		}
+		if (report.deleted.length > 0) {
+			const n = report.deleted.length;
+			new Notice(
+				`Deleted ${n} skill${n === 1 ? '' : 's'}: ${report.deleted.join(', ')}.\n` +
+					`To restore: ${report.trashedCopies > 0 ? `agent copies are in ${contractHome(report.trashFolder)} (move them back), ` : ''}` +
+					`${this.trashedNotesLocation()}.`,
+				15000,
+			);
+		} else if (report.trashedCopies > 0) {
+			new Notice(
+				`Removed ${report.trashedCopies} cop${report.trashedCopies === 1 ? 'y' : 'ies'} of skills deleted on another computer.\nTo restore: they are in ${contractHome(report.trashFolder)}.`,
+				15000,
+			);
+		}
+	}
+
+	/** Where Obsidian put the deleted notes (Settings → Files and links → Deleted files). */
+	private trashedNotesLocation(): string {
+		const option = (this.app.vault as unknown as { getConfig(key: string): unknown }).getConfig('trashOption');
+		if (option === 'local') return "the notes are in the vault's .trash folder";
+		if (option === 'none') return 'the notes were deleted permanently (Settings → Files and links → Deleted files)';
+		return "the notes are in your system's trash";
+	}
+
 	async sync(): Promise<void> {
 		await this.exclusive(async () => {
 			try {
 				const report = await runSync(this.config(), this.resolver);
-				const changes = report.applied.filter((a) => a.type !== 'conflict' && a.type !== 'setStates').length;
+				await this.recordDeletions(report);
+				const changes = report.applied.filter((a) => !['conflict', 'setStates', 'deleteSkill', 'trashCopies'].includes(a.type)).length;
 				if (changes > 0) new Notice(`Synced ${changes} skill change${changes === 1 ? '' : 's'}.`);
 				if (report.errors.length > 0) {
 					for (const e of report.errors) console.error('[skills-sync]', e);
@@ -488,6 +534,7 @@ export default class AgentSkillsHub extends Plugin {
 		const p = this.settings.propPrefix;
 		for (const c of this.columns()) mtm.setType(`${p}${c.id}`, 'checkbox');
 		mtm.setType(`${p}conflict`, 'checkbox');
+		mtm.setType(`${p}delete`, 'checkbox');
 		mtm.setType(`${p}skill-keys`, 'multitext');
 		mtm.setType(`${p}source`, 'multitext');
 		mtm.setType(`${p}path`, 'text');

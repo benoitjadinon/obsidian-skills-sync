@@ -7,7 +7,14 @@ export class ObsidianResolver implements Resolver {
 	/** Paths the user declined to migrate this session (asked again after a restart). */
 	private declined = new Set<string>();
 
-	constructor(private readonly app: App, private readonly deps: ConflictUiDeps) {}
+	constructor(
+		private readonly app: App,
+		private readonly deps: ConflictUiDeps & { trashVaultSkill: (name: string) => Promise<void> },
+	) {}
+
+	trashVaultSkill(name: string): Promise<void> {
+		return this.deps.trashVaultSkill(name);
+	}
 
 	resolve(req: ConflictRequest): Promise<Resolution> {
 		return new ConflictModal(this.app, req, this.deps).openAndWait();

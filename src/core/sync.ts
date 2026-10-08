@@ -38,12 +38,20 @@ export interface MigrationItem {
 export interface Resolver {
 	resolve(req: ConflictRequest): Promise<Resolution>;
 	confirmMigration(items: MigrationItem[]): Promise<boolean>;
+	/** Move a vault skill folder to Obsidian's trash (optional; otherwise it goes to the trash folder). */
+	trashVaultSkill?(name: string): Promise<void>;
 }
 
 export interface SyncReport {
 	applied: Action[];
 	conflicts: number;
 	errors: string[];
+	/** Skills deleted from the Delete column during this run. */
+	deleted: string[];
+	/** Agent copies moved to the trash folder. */
+	trashedCopies: number;
+	/** This run's trash folder for agent copies. */
+	trashFolder: string;
 }
 
 export function labelsFor(cfg: SyncConfig): Record<string, string> {
@@ -110,11 +118,11 @@ export async function applyResolution(ex: Executor, g: SkillGroup, c: Conflict, 
 }
 
 export async function runSync(cfg: SyncConfig, resolver: Resolver): Promise<SyncReport> {
-	const report: SyncReport = { applied: [], conflicts: 0, errors: [] };
+	const report: SyncReport = { applied: [], conflicts: 0, errors: [], deleted: [], trashedCopies: 0, trashFolder: '' };
 	const links = await findSymlinks(cfg);
 	if (links.length > 0 && (await resolver.confirmMigration(links))) await migrate(cfg, links);
 	const live = await liveConfig(cfg);
-	const ex = new Executor(cfg);
+	const ex = new Executor(cfg, resolver.trashVaultSkill?.bind(resolver));
 	const labels = labelsFor(cfg);
 	for (const g of await loadGroups(cfg)) {
 		try {
@@ -125,6 +133,7 @@ export async function runSync(cfg: SyncConfig, resolver: Resolver): Promise<Sync
 					await applyResolution(ex, g, action.conflict, r, cfg);
 				} else {
 					await ex.apply(action);
+					if (action.type === 'deleteSkill') report.deleted.push(g.name);
 				}
 				report.applied.push(action);
 			}
@@ -135,6 +144,8 @@ export async function runSync(cfg: SyncConfig, resolver: Resolver): Promise<Sync
 	for (const l of await findSymlinks(cfg)) {
 		report.errors.push(`${l.linkPath}: skill folder is a symlink; accept the migration to sync it`);
 	}
+	report.trashedCopies = ex.trashed;
+	report.trashFolder = ex.trashFolder();
 	return report;
 }
 

@@ -57,6 +57,7 @@ Each skill is a folder in your skills folder. Its `SKILL.md` is the note you see
 | `agent-skill-keys` | The skill's own frontmatter keys, in their original order. Only these keys are written to agents, and an empty list means the skill had no frontmatter at all. |
 | `agent-path` | The category folder, for agents that group skills into folders (Hermes: `github` → `~/.hermes/skills/github/<skill>/`). |
 | `agent-folder` | The folder name agents use, when two different skills share a name. |
+| `agent-delete` | **Delete** column (always the last one): tick it and the next sync deletes the skill everywhere. |
 | `agent-conflict` | `true` while a conflict is waiting for you (listed in the base's **Conflicts** view). |
 
 You can add your own properties (ratings, tags, notes). They stay in the vault and are never copied to agents.
@@ -87,6 +88,15 @@ For each skill, the plugin compares the vault version with the copy of every age
 | The skill changed in several places | It's a conflict (see below). |
 
 Comparisons ignore formatting noise: line endings, trailing spaces, blank lines at the edges, and how Obsidian rewrites properties when you tick a box. Files are always copied byte for byte.
+
+## Deleting skills
+
+Tick a skill's **Delete** checkbox (the last column; the base's **To delete** view lists them). The next sync deletes it from every agent and project folder and from the vault:
+
+- **Agent copies** (archived ones too) are moved to `~/.skills-sync-trash/<date>/<agent>/<skill>`, not erased: move them back to restore.
+- **The skill's note** goes wherever Obsidian puts deleted files (**Settings → Files and links → Deleted files**: your system trash, the vault's `.trash` folder, or permanently).
+- A notice lists what was deleted and how to restore it.
+- **Other computers sharing the vault** remove their own copies at their next sync and never re-import the skill. Skills deleted in the last 30 days are remembered in the shared settings for that; creating a skill with the same name again works as usual.
 
 ## Resolving conflicts
 

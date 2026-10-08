@@ -13,6 +13,8 @@ export interface StoredSettings {
 	projects: ProjectConfig[];
 	autoPullExternal: 'ask' | 'auto';
 	autoSync: boolean;
+	/** Skills deleted recently (folder name as id, ISO date): every computer trashes its copies, none re-imports them. */
+	deleted: { id: string; at: string }[];
 }
 
 /** What the plugin works with: the shared settings plus this computer's merge tool. */
@@ -30,10 +32,11 @@ export const DEFAULT_SETTINGS: HubSettings = {
 	projects: [],
 	autoPullExternal: 'ask',
 	autoSync: true,
+	deleted: [],
 	mergeCommand: '',
 };
 
-const STORED_KEYS = ['hubFolder', 'propPrefix', 'basePath', 'baseView', 'agents', 'projects', 'autoPullExternal', 'autoSync'] as const;
+const STORED_KEYS = ['hubFolder', 'propPrefix', 'basePath', 'baseView', 'agents', 'projects', 'autoPullExternal', 'autoSync', 'deleted'] as const;
 
 function unionById<T extends { id: string }>(lists: T[][]): T[] {
 	const out: T[] = [];
@@ -77,5 +80,6 @@ export function mergeOnSave(onDisk: unknown, loaded: HubSettings, mine: HubSetti
 	for (const k of STORED_KEYS) out[k] = mine[k];
 	out['agents'] = mergeLists(disk.agents, loaded.agents, mine.agents);
 	out['projects'] = mergeLists(disk.projects, loaded.projects, mine.projects);
+	out['deleted'] = mergeLists(disk.deleted, loaded.deleted, mine.deleted);
 	return out as unknown as StoredSettings;
 }

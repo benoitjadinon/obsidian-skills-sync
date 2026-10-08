@@ -36,6 +36,10 @@ export interface SyncConfig {
 	prefix: string;
 	agents: AgentConfig[];
 	autoPullExternal: 'ask' | 'auto';
+	/** Where deleted agent copies go (default ~/.skills-sync-trash). */
+	trashDir?: string;
+	/** Folder names of skills deleted recently (on any computer): trashed from agents, never re-imported. */
+	deleted?: string[];
 }
 
 export interface PluginMeta {
@@ -45,6 +49,8 @@ export interface PluginMeta {
 	path: string;
 	folder: string;
 	conflict: boolean;
+	/** Ticked in the Delete column: the next sync deletes the skill everywhere. */
+	delete: boolean;
 	/** Agents the skill was first imported from; null = property absent. Never changed by sync. */
 	sources: string[] | null;
 }

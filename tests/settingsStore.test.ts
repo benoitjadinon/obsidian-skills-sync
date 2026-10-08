@@ -56,3 +56,12 @@ describe('mergeOnSave', () => {
 		expect((out as unknown as Record<string, unknown>)['mergeCommand']).toBeUndefined();
 	});
 });
+
+describe('deleted list', () => {
+	it('is shared and merged like the other lists', () => {
+		const loaded = { ...DEFAULT_SETTINGS, deleted: [{ id: 'a', at: '2026-10-01' }] };
+		const mine = { ...loaded, deleted: [...loaded.deleted, { id: 'b', at: '2026-10-09' }] };
+		const disk = { ...DEFAULT_SETTINGS, deleted: [{ id: 'a', at: '2026-10-01' }, { id: 'c', at: '2026-10-08' }] };
+		expect(mergeOnSave(disk, loaded, mine).deleted.map((d) => d.id)).toEqual(['a', 'b', 'c']);
+	});
+});

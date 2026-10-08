@@ -182,7 +182,7 @@ export function setMeta(vaultText: string, meta: PluginMeta, prefix: string, age
 
 export function newSkillText(name: string, description: string, prefix: string, agentOrder: string[]): string {
 	const agentText = `---\nname: ${scalar(name)}\ndescription: ${JSON.stringify(description)}\n---\n\n# ${name}\n`;
-	return toVaultText(agentText, null, prefix, { ...emptyMeta(), sources: [] }, agentOrder);
+	return toVaultText(agentText, null, prefix, { ...emptyMeta(), sources: [], folder: name }, agentOrder);
 }
 
 /** Display form of a frontmatter value: strings as is, anything else as compact JSON. */

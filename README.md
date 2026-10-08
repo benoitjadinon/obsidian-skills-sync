@@ -56,7 +56,7 @@ Each skill is a folder in your skills folder. Its `SKILL.md` is the note you see
 | `agent-source` | The agents the skill was imported from. Set once on import, never changed by sync, so you can correct it by hand. |
 | `agent-skill-keys` | The skill's own frontmatter keys, in their original order. Only these keys are written to agents, and an empty list means the skill had no frontmatter at all. |
 | `agent-path` | The category folder, for agents that group skills into folders (Hermes: `github` → `~/.hermes/skills/github/<skill>/`). |
-| `agent-folder` | The folder name agents use, when two different skills share a name. |
+| `agent-folder` | The skill's folder name in agents (always recorded, internal: not shown in the base). Agents keep this folder name even if you rename the note; it also tells apart two different skills that share a name. |
 | `agent-delete` | **Delete** column (always the last one): tick it and the next sync deletes the skill everywhere. |
 | `agent-conflict` | `true` while a conflict is waiting for you (listed in the base's **Conflicts** view). |
 

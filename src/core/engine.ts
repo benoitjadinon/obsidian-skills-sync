@@ -23,6 +23,8 @@ export type Action =
 	| { type: 'unarchive'; group: SkillGroup; copy: SkillCopy }
 	| { type: 'setStates'; group: SkillGroup; states: Record<string, AgentState> }
 	| { type: 'setPath'; group: SkillGroup; path: string }
+	/** Record the agents' folder name on a note that doesn't have it yet. */
+	| { type: 'setFolder'; group: SkillGroup; folder: string }
 	/** Ticked in the Delete column: trash every agent copy and the vault note. */
 	| { type: 'deleteSkill'; group: SkillGroup }
 	/** Deleted on another computer: trash this computer's agent copies instead of importing them. */
@@ -85,7 +87,7 @@ function planImport(g: SkillGroup, copies: SkillCopy[], cfg: SyncConfig): Action
 	}
 	const states = importStates(cfg, active.map((c) => c.owner), archived.map((c) => c.owner));
 	const sources = sourcesOf(copies.map((c) => c.owner), cfg);
-	return [{ type: 'import', group: g, from, states, path: importPath(g, pool, cfg), folder: g.newFolder ?? '', sources }];
+	return [{ type: 'import', group: g, from, states, path: importPath(g, pool, cfg), folder: g.newFolder ?? from.folder, sources }];
 }
 
 export function planGroup(g: SkillGroup, cfg: SyncConfig): Action[] {
@@ -100,6 +102,8 @@ export function planGroup(g: SkillGroup, cfg: SyncConfig): Action[] {
 	if (v.meta.delete) return [{ type: 'deleteSkill', group: g }];
 	if (v.hasConflictFile) return [];
 	const actions: Action[] = [];
+	// agent-folder is always recorded: agents keep this folder name even if the note is renamed.
+	if (!v.meta.folder) actions.push({ type: 'setFolder', group: g, folder: g.name });
 
 	// A newly added agent (no property yet) adopts what it already holds: a copy ticks it (asking when
 	// the copy differs from the vault), an archived copy unticks it, nothing leaves it undecided.

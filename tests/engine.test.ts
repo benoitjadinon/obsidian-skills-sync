@@ -17,7 +17,7 @@ const g = (states: Record<string, AgentState> | null, vaultKey: string, vaultMti
 	copies,
 	vault: states === null ? undefined : {
 		name: 'x', rawSkillMd: '', hasConflictFile: false,
-		meta: { ...emptyMeta(), states, ...meta },
+		meta: { ...emptyMeta(), folder: 'x', states, ...meta },
 		copy: c('vault', vaultKey, vaultMtime),
 	},
 });

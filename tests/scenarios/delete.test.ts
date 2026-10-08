@@ -62,7 +62,7 @@ describe('Delete on next sync', () => {
 
 	it('a skill re-created in the vault is not affected by an old deletion', () => {
 		const cfg = { hubDir: '/h', prefix: 'agent-', agents: [], autoPullExternal: 'ask' as const, deleted: ['x'] };
-		const g = { name: 'x', copies: [], vault: { name: 'x', rawSkillMd: '', hasConflictFile: false, meta: emptyMeta(), copy: { owner: 'vault', dir: '/h/x', folder: 'x', relPath: '', archived: false, files: new Map(), mtimeMs: 0, key: 'k' } } };
+		const g = { name: 'x', copies: [], vault: { name: 'x', rawSkillMd: '', hasConflictFile: false, meta: { ...emptyMeta(), folder: 'x' }, copy: { owner: 'vault', dir: '/h/x', folder: 'x', relPath: '', archived: false, files: new Map(), mtimeMs: 0, key: 'k' } } };
 		expect(planGroup(g, cfg)).toEqual([]);
 	});
 });

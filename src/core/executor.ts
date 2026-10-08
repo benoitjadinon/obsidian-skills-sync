@@ -213,6 +213,8 @@ export class Executor {
 				return this.patchMeta(g, { states: action.states });
 			case 'setPath':
 				return this.patchMeta(g, { path: action.path });
+			case 'setFolder':
+				return this.patchMeta(g, { folder: action.folder });
 			case 'deleteSkill':
 				return this.deleteSkill(g);
 			case 'trashCopies':

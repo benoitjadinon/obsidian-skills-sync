@@ -179,3 +179,35 @@ describe('preview before ticking the skills already in an agent folder', () => {
 		expect(await previewUndecided(w.cfg, 'hermes')).toEqual({ identical: ['a'], different: ['b'] });
 	});
 });
+
+describe('agent-folder is always recorded', () => {
+	it('on import (from a category subfolder), on existing notes without it, and for new skills', async () => {
+		const { createSkill } = await import('../../src/core/sync');
+		const w = hermesWorld();
+		w.put('hermes', { 'productivity/airtable/SKILL.md': skillMd('airtable') }, T0);
+		w.put('vault', { 'old/SKILL.md': w.vaultMd(skillMd('old'), { claude: true, hermes: null }) }, T0);
+		w.put('claude', { 'old/SKILL.md': skillMd('old') }, T0);
+		await createSkill(w.cfg, 'fresh', 'A new skill');
+		await runSync(w.cfg, new StubResolver());
+		const meta = (n: string) => readMeta(w.tree('vault')[`${n}/SKILL.md`] ?? '', 'agent-');
+		expect(meta('airtable')).toMatchObject({ folder: 'airtable', path: 'productivity' });
+		expect(meta('old').folder).toBe('old');
+		expect(meta('fresh').folder).toBe('fresh');
+		// Nothing else changes: a second sync finds nothing to do.
+		const report = await runSync(w.cfg, new StubResolver());
+		expect(report.applied).toHaveLength(0);
+	});
+
+	it('a renamed note keeps syncing to the same agent folders', async () => {
+		const { renameSync } = await import('fs');
+		const w = hermesWorld();
+		w.put('claude', { 'pdf/SKILL.md': skillMd('pdf') }, T0);
+		await runSync(w.cfg, new StubResolver());
+		renameSync(join(w.hub, 'pdf'), join(w.hub, 'pdf-tools'));
+		const r = new StubResolver();
+		await runSync(w.cfg, r);
+		expect(r.requests).toHaveLength(0);
+		expect(Object.keys(w.tree('vault'))).toEqual(['pdf-tools/SKILL.md']);
+		expect(Object.keys(w.tree('claude'))).toEqual(['pdf/SKILL.md']);
+	});
+});

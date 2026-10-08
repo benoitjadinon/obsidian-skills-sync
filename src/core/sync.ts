@@ -83,7 +83,7 @@ export async function applyResolution(ex: Executor, g: SkillGroup, c: Conflict, 
 			if (c.kind === 'import') {
 				const states = importStates(cfg, Object.values(c.owners).flat().filter((o) => o !== VAULT));
 				const sources = sourcesOf(g.copies.map((x) => x.owner), cfg);
-				await ex.importSkill(g.name, r.files, states, importPath(g, c.theirs, cfg), g.newFolder ?? '', sources);
+				await ex.importSkill(g.name, r.files, states, importPath(g, c.theirs, cfg), g.newFolder ?? c.theirs[0]?.folder ?? g.name, sources);
 				return;
 			}
 			await ex.applyToVault(g, r.files, { conflict: false });

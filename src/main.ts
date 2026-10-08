@@ -1,12 +1,13 @@
 import { FileSystemAdapter, normalizePath, Notice, Plugin, TAbstractFile, TFile, TFolder } from 'obsidian';
 import { join, relative, sep } from 'path';
-import { detectPresets, expandHome, inferPreset } from './core/agents';
-import { defaultBase, ensureAgentColumns, removeAgentColumn } from './core/base';
+import { detectPresets, expandHome, inferPreset, presetsFor } from './core/agents';
+import { type BaseOptions, defaultBase, ensureAgentColumns, removeAgentColumn } from './core/base';
 import { resolveConflictFiles } from './core/conflictFiles';
 import { hasMarkers } from './core/merge';
 import type { SyncConfig } from './core/model';
 import { isConflictFile } from './core/scan';
-import { createSkill, deleteEverywhere, removeAgentFromNotes, fillMissingSources, findAgentCopies, removeFromAgents, runSync } from './core/sync';
+import { projectColumns, switchStates, syncTargets } from './core/projects';
+import { createSkill, deleteEverywhere, removeAgentFromNotes, rewriteStates, fillMissingSources, findAgentCopies, removeFromAgents, runSync } from './core/sync';
 import { Watcher } from './core/watcher';
 import { DEFAULT_SETTINGS, type HubSettings, HubSettingTab } from './settings';
 import { ObsidianResolver } from './ui/resolver';
@@ -29,12 +30,23 @@ export default class AgentSkillsHub extends Plugin {
 		await this.loadSettings();
 		// Remember which agents came from a preset (settings saved before the field existed).
 		let migrated = false;
+		const known = presetsFor();
 		for (const a of this.settings.agents) {
-			if (a.kind !== 'agent' || a.preset) continue;
-			const preset = inferPreset(a);
-			if (preset) {
-				a.preset = preset;
-				migrated = true;
+			if (a.kind !== 'agent') continue;
+			if (!a.preset) {
+				const preset = inferPreset(a);
+				if (preset) {
+					a.preset = preset;
+					migrated = true;
+				}
+			}
+			// Agents saved before project folders existed get their preset's project skills folder.
+			if (a.projectDir === undefined && a.preset) {
+				const projectDir = known.find((p) => p.id === a.preset)?.projectDir;
+				if (projectDir) {
+					a.projectDir = projectDir;
+					migrated = true;
+				}
 			}
 		}
 		if (migrated) await this.saveSettings();
@@ -126,7 +138,7 @@ export default class AgentSkillsHub extends Plugin {
 		return {
 			hubDir: join(this.vaultBase(), normalizePath(s.hubFolder)),
 			prefix: s.propPrefix,
-			agents: s.agents.map((a) => ({ ...a, path: expandHome(a.path) })),
+			agents: syncTargets(s.agents.map((a) => ({ ...a, path: expandHome(a.path) })), s.projects),
 			autoPullExternal: s.autoPullExternal,
 		};
 	}
@@ -272,7 +284,7 @@ export default class AgentSkillsHub extends Plugin {
 
 	async ensureBase(open = false): Promise<void> {
 		const s = this.settings;
-		const opts = { hubFolder: normalizePath(s.hubFolder), prefix: s.propPrefix, agents: s.agents.map((a) => ({ id: a.id, label: a.label })) };
+		const opts = { hubFolder: normalizePath(s.hubFolder), prefix: s.propPrefix, agents: this.columns() };
 		const path = normalizePath(s.basePath);
 		let file = this.app.vault.getAbstractFileByPath(path);
 		if (file instanceof TFile) {
@@ -286,18 +298,31 @@ export default class AgentSkillsHub extends Plugin {
 		if (open && file instanceof TFile) await this.app.workspace.getLeaf(false).openFile(file);
 	}
 
-	/** After an agent was removed from settings: delete its property from every skill note and its base column. */
-	async removeAgentProperty(agentId: string): Promise<void> {
+	/** After an agent or project was removed from settings: delete its properties from every skill note and its base columns. */
+	async removeColumns(ids: string[]): Promise<void> {
 		await this.exclusive(async () => {
-			const changed = await removeAgentFromNotes(this.config(), agentId);
-			const base = this.app.vault.getAbstractFileByPath(normalizePath(this.settings.basePath));
-			if (base instanceof TFile) {
-				const s = this.settings;
-				const remaining = { hubFolder: normalizePath(s.hubFolder), prefix: s.propPrefix, agents: s.agents.map((a) => ({ id: a.id, label: a.label })) };
-				await this.app.vault.process(base, (t) => removeAgentColumn(t, remaining, agentId));
-			}
-			new Notice(`Removed ${this.settings.propPrefix}${agentId} from ${changed.length} skill note${changed.length === 1 ? '' : 's'}.`);
+			const changed = new Set<string>();
+			for (const id of ids) for (const name of await removeAgentFromNotes(this.config(), id)) changed.add(name);
+			await this.processBase((t, remaining) => ids.reduce((text, id) => removeAgentColumn(text, remaining, id), t));
+			new Notice(`Removed ${ids.length === 1 ? `${this.settings.propPrefix}${ids[0]}` : `${ids.length} columns`} from ${changed.size} skill note${changed.size === 1 ? '' : 's'}.`);
 		});
+	}
+
+	/** A project switched between one column and one per agent: move every skill's choices, drop the old columns. */
+	async switchColumns(from: string[], to: string[]): Promise<void> {
+		await this.exclusive(async () => {
+			await rewriteStates(this.config(), (states) => switchStates(states, from, to));
+			const gone = from.filter((id) => !to.includes(id));
+			await this.processBase((t, remaining) => gone.reduce((text, id) => removeAgentColumn(text, remaining, id), t));
+		});
+	}
+
+	private async processBase(fn: (text: string, remaining: BaseOptions) => string): Promise<void> {
+		const base = this.app.vault.getAbstractFileByPath(normalizePath(this.settings.basePath));
+		if (!(base instanceof TFile)) return;
+		const s = this.settings;
+		const remaining: BaseOptions = { hubFolder: normalizePath(s.hubFolder), prefix: s.propPrefix, agents: this.columns() };
+		await this.app.vault.process(base, (t) => fn(t, remaining));
 	}
 
 	async onAgentsChanged(): Promise<void> {
@@ -307,11 +332,17 @@ export default class AgentSkillsHub extends Plugin {
 		await this.sync();
 	}
 
+	/** Every checkbox column of the base: one per agent, then the projects' columns. */
+	columns(): { id: string; label: string }[] {
+		const agents = this.settings.agents;
+		return [...agents.map((a) => ({ id: a.id, label: a.label })), ...this.settings.projects.flatMap((p) => projectColumns(p, agents))];
+	}
+
 	private registerPropertyTypes(): void {
 		const mtm = (this.app as unknown as { metadataTypeManager?: MetadataTypeManager }).metadataTypeManager;
 		if (!mtm?.setType) return;
 		const p = this.settings.propPrefix;
-		for (const a of this.settings.agents) mtm.setType(`${p}${a.id}`, 'checkbox');
+		for (const c of this.columns()) mtm.setType(`${p}${c.id}`, 'checkbox');
 		mtm.setType(`${p}conflict`, 'checkbox');
 		mtm.setType(`${p}skill-keys`, 'multitext');
 		mtm.setType(`${p}source`, 'multitext');

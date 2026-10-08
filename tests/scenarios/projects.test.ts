@@ -74,7 +74,7 @@ describe('project with one column per agent', () => {
 		const { w, root, cfg, tick } = projectWorld(true);
 		w.put('vault', { 'x/SKILL.md': w.vaultMd(skillMd('x'), {}) }, T0);
 		await runSync(cfg, new StubResolver());
-		tick('x', { 'myapp-claude': true, 'myapp-codex': false });
+		tick('x', { 'myapp-claude': true, 'myapp-agents': false });
 		await runSync(cfg, new StubResolver());
 		expect(tree(join(root, '.claude/skills'))).toEqual({ 'x/SKILL.md': skillMd('x') });
 		expect(existsSync(join(root, '.agents/skills/x'))).toBe(false);

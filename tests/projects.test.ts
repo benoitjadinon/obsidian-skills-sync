@@ -29,7 +29,7 @@ describe('expandProject', () => {
 	});
 	it('per-agent columns: one checkbox per folder', () => {
 		const t = expandProject(proj(true), AGENTS);
-		expect(t.map((x) => x.stateKey)).toEqual(['myapp-claude', 'myapp-codex']);
+		expect(t.map((x) => x.stateKey)).toEqual(['myapp-claude', 'myapp-agents']);
 	});
 	it('expands ~ in the project folder', () => {
 		expect(expandProject({ ...proj(false), root: '~/w/app' }, AGENTS, '/home/me')[0]?.path).toBe('/home/me/w/app/.claude/skills');
@@ -41,12 +41,24 @@ describe('columns and targets', () => {
 		expect(projectColumns(proj(false), AGENTS)).toEqual([{ id: 'myapp', label: 'My app' }]);
 		expect(projectColumns(proj(true), AGENTS)).toEqual([
 			{ id: 'myapp-claude', label: 'My app · Claude Code' },
-			{ id: 'myapp-codex', label: 'My app · Codex, Pi' },
+			{ id: 'myapp-agents', label: 'My app · Codex, Pi' },
 		]);
 	});
 	it('syncTargets and stateKeys: agents first, then project folders; one key per checkbox', () => {
 		const targets = syncTargets(AGENTS, [proj(false)]);
 		expect(targets).toHaveLength(6);
 		expect(stateKeys(targets)).toEqual(['claude', 'codex', 'pi', 'openclaw', 'myapp']);
+	});
+});
+
+describe('switchProjectColumns', () => {
+	it('copies the single column to every per-agent column, and back (true if any, false if all false)', async () => {
+		const { switchStates } = await import('../src/core/projects');
+		expect(switchStates({ myapp: true, claude: null }, ['myapp'], ['myapp-claude', 'myapp-codex'])).toEqual({
+			claude: null, 'myapp-claude': true, 'myapp-codex': true,
+		});
+		expect(switchStates({ 'myapp-claude': false, 'myapp-codex': true }, ['myapp-claude', 'myapp-codex'], ['myapp'])).toEqual({ myapp: true });
+		expect(switchStates({ 'myapp-claude': false, 'myapp-codex': false }, ['myapp-claude', 'myapp-codex'], ['myapp'])).toEqual({ myapp: false });
+		expect(switchStates({ 'myapp-claude': null, 'myapp-codex': false }, ['myapp-claude', 'myapp-codex'], ['myapp'])).toEqual({ myapp: null });
 	});
 });

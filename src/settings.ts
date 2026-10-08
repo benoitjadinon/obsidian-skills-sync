@@ -2,9 +2,11 @@ import { App, type DropdownComponent, FileSystemAdapter, normalizePath, Notice, 
 import { existsSync } from 'fs';
 import { isAbsolute, join, relative, sep } from 'path';
 import { expandHome, inferPreset, sortAgentsForList } from './core/agents';
-import type { AgentConfig } from './core/model';
+import type { AgentConfig, ProjectConfig } from './core/model';
 import type AgentSkillsHub from './main';
 import { AgentModal } from './ui/AgentModal';
+import { ProjectModal } from './ui/ProjectModal';
+import { projectColumns, projectFolders } from './core/projects';
 import { showFieldError } from './ui/fieldErrors';
 import { addFolderBrowse } from './ui/folderPicker';
 import { MERGE_TOOL_PRESETS } from './core/externalMerge';
@@ -17,6 +19,8 @@ export interface HubSettings {
 	basePath: string;
 	/** Paths may start with "~". */
 	agents: AgentConfig[];
+	/** Code projects: their agents' project skills folders, synced from one column or one per folder. */
+	projects: ProjectConfig[];
 	autoPullExternal: 'ask' | 'auto';
 	autoSync: boolean;
 	mergeCommand: string;
@@ -28,6 +32,7 @@ export const DEFAULT_SETTINGS: HubSettings = {
 	propPrefix: 'agent-',
 	basePath: 'Skills/Skills.base',
 	agents: [],
+	projects: [],
 	autoPullExternal: 'ask',
 	autoSync: true,
 	mergeCommand: '',
@@ -139,10 +144,62 @@ export class HubSettingTab extends PluginSettingTab {
 		});
 
 		this.renderList(containerEl, 'agent');
-		this.renderList(containerEl, 'project');
+		this.renderProjects(containerEl);
 	}
 
-	private renderList(el: HTMLElement, kind: AgentConfig['kind']): void {
+	private renderProjects(el: HTMLElement): void {
+		const s = this.plugin.settings;
+		new Setting(el)
+			.setName('Projects')
+			.setHeading()
+			.addButton((b) => b.setButtonText('Add project…').onClick(() => this.openProjectForm()));
+		const folders = projectFolders(s.agents);
+		if (s.projects.length === 0) {
+			el.createEl('p', { cls: 'setting-item-description', text: 'No projects yet. A project syncs skills into the skills folders your agents read inside a code project.' });
+		}
+		for (const p of [...s.projects].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }))) {
+			const columns = projectColumns(p, s.agents);
+			const missing = existsSync(expandHome(p.root)) ? '' : ' · folder not found';
+			const mode = p.perAgentColumns ? `${columns.length} columns` : `${s.propPrefix}${p.id}`;
+			new Setting(el)
+				.setName(p.label)
+				.setDesc(`${p.root} · ${folders.length} skills folder${folders.length === 1 ? '' : 's'} · ${mode}${missing}`)
+				.addExtraButton((b) => b.setIcon('pencil').setTooltip('Edit').onClick(() => this.openProjectForm(p)))
+				.addExtraButton((b) => b.setIcon('trash').setTooltip('Remove').onClick(async () => {
+					const property = p.perAgentColumns ? `${s.propPrefix}${p.id}-… properties` : `${s.propPrefix}${p.id} property`;
+					const r = await new RemoveAgentModal(this.app, p.label, p.root, property).openAndWait();
+					if (!r.confirmed) return;
+					s.projects = s.projects.filter((x) => x !== p);
+					await this.plugin.saveSettings();
+					if (r.removeProperties) await this.plugin.removeColumns(columns.map((c) => c.id));
+					await this.changed();
+				}));
+		}
+	}
+
+	private openProjectForm(project?: ProjectConfig): void {
+		const s = this.plugin.settings;
+		new ProjectModal(this.app, {
+			project,
+			agents: s.agents,
+			projects: s.projects,
+			prefix: s.propPrefix,
+			hubDir: this.plugin.config().hubDir,
+			onSave: async (saved) => {
+				if (project) {
+					const before = projectColumns(project, s.agents).map((c) => c.id);
+					Object.assign(project, saved);
+					const after = projectColumns(project, s.agents).map((c) => c.id);
+					if (before.join() !== after.join()) await this.plugin.switchColumns(before, after);
+				} else {
+					s.projects.push(saved);
+				}
+				await this.changed();
+			},
+		}).open();
+	}
+
+	private renderList(el: HTMLElement, kind: 'agent'): void {
 		const s = this.plugin.settings;
 		new Setting(el)
 			.setName(kind === 'agent' ? 'Agents' : 'Projects')
@@ -150,7 +207,7 @@ export class HubSettingTab extends PluginSettingTab {
 			.addButton((b) => b
 				.setButtonText(kind === 'agent' ? 'Add agent…' : 'Add project…')
 				.onClick(() => this.openForm(kind)));
-		const items = sortAgentsForList(s.agents.filter((a) => a.kind === kind));
+		const items = sortAgentsForList(s.agents);
 		if (items.length === 0) {
 			el.createEl('p', { cls: 'setting-item-description', text: kind === 'agent' ? 'No agents yet.' : 'No project skills folders yet.' });
 		}
@@ -160,7 +217,7 @@ export class HubSettingTab extends PluginSettingTab {
 			const missing = existsSync(expandHome(a.path)) ? '' : ' · folder not found';
 			const name = createFragment((f) => {
 				f.appendText(a.label);
-				if (kind === 'agent') {
+				{
 					const preset = inferPreset(a) !== undefined;
 					f.createSpan({ cls: `ash-tag ${preset ? 'ash-tag-preset' : 'ash-tag-custom'}`, text: preset ? 'Preset' : 'Custom' });
 				}
@@ -170,11 +227,11 @@ export class HubSettingTab extends PluginSettingTab {
 				.setDesc(`${a.path}${layout}${archive} · ${s.propPrefix}${a.id}${missing}`)
 				.addExtraButton((b) => b.setIcon('pencil').setTooltip('Edit').onClick(() => this.openForm(kind, a)))
 				.addExtraButton((b) => b.setIcon('trash').setTooltip('Remove').onClick(async () => {
-					const r = await new RemoveAgentModal(this.app, a.label, a.path, `${s.propPrefix}${a.id}`).openAndWait();
+					const r = await new RemoveAgentModal(this.app, a.label, a.path, `${s.propPrefix}${a.id} property`).openAndWait();
 					if (!r.confirmed) return;
 					s.agents = s.agents.filter((x) => x !== a);
 					await this.plugin.saveSettings();
-					if (r.removeProperties) await this.plugin.removeAgentProperty(a.id);
+					if (r.removeProperties) await this.plugin.removeColumns([a.id]);
 					await this.changed();
 				}));
 		}

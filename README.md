@@ -39,7 +39,7 @@ Because it's a regular Base, it's also yours to shape:
 1. Install **Skills Sync** from **Settings → Community plugins → Browse**, and enable it. It runs on desktop only.
 2. Open **Settings → Skills Sync**:
    - **Skills folder**: the vault folder that holds one subfolder per skill (default `Skills`).
-   - **Agents**: the agents installed on your computer are already listed. Each one is tagged **Preset** (created from a known agent) or **Custom**, with preset agents first. Removing an agent only stops syncing it; its files are never touched, and you can choose to also remove its property from all skill notes (and its column from the base). Use **Add agent…** to add others: pick one of the known agents or enter your own skills folder. Use **Add project…** for a project's skills folder.
+   - **Agents**: the agents installed on your computer are already listed. Each one is tagged **Preset** (created from a known agent) or **Custom**, with preset agents first. Removing an agent only stops syncing it; its files are never touched, and you can choose to also remove its property from all skill notes (and its column from the base). Use **Add agent…** to add others: pick one of the known agents or enter your own skills folder. Use **Add project…** for a code project (see [Projects](#projects)).
 3. Run the command **Create or update the skills base**. It creates `Skills/Skills.base` (or adds the agent columns to an existing base) and opens it.
 4. The first sync imports every skill found in your agents' folders. Each one is ticked for the agents that already had it and left empty for the others. From then on, tick and untick boxes in the base.
 
@@ -61,6 +61,15 @@ Each skill is a folder in your skills folder. Its `SKILL.md` is the note you see
 You can add your own properties (ratings, tags, notes). They stay in the vault and are never copied to agents.
 
 The default base has four views: **All skills**, **Undecided** (some agent not decided yet), **Unassigned** (shared with no agent) and **Conflicts**.
+
+## Projects
+
+Agents also read skills from inside a code project, for example `<repo>/.claude/skills` for Claude Code and `<repo>/.agents/skills` for Codex, Cursor, Gemini CLI, OpenCode, Pi and others. **Add project…** asks only for the project folder. Skills Sync then manages the project skills folder of every agent in your settings, writing each folder once even when several agents share it.
+
+- **One column per project (default).** Ticking `agent-<project>` copies the skill into every one of those folders, creating them if needed. Unticking removes it from all of them.
+- **A column per agent** (an option in the project form): one column per project skills folder, for example `agent-<project>-claude` and `agent-<project>-agents`, to choose folder by folder. Switching between the two keeps your choices.
+
+Add or remove agents later and projects follow: ticked skills are copied into the new agent's project folder on the next sync. Each agent's project folder comes from its form (**Project skills folder**, prefilled for known agents). Skills already present in a project folder are imported and ticked for that project.
 
 ## How sync decides
 

@@ -114,8 +114,8 @@ export class RemoveAgentModal extends Modal {
 		this.setTitle(`Remove ${this.label}?`);
 		this.contentEl.createEl('p', { text: `Skills Sync stops syncing ${this.path}. The skill files in that folder are never touched.` });
 		new Setting(this.contentEl)
-			.setName(`Also remove the ${this.property} property from all skill notes`)
-			.setDesc('Also removes its column from the skills base. Leave off to keep your choices, for example to add the agent back later.')
+			.setName(`Also remove the ${this.property} from all skill notes`)
+			.setDesc('Also removes its column from the skills base. Leave off to keep your choices, for example to add it back later.')
 			.addToggle((t) => t.setValue(false).onChange((v) => (this.removeProperties = v)));
 		new Setting(this.contentEl)
 			.addButton((b) => b.setButtonText('Cancel').onClick(() => this.close()))

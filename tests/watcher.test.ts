@@ -58,8 +58,11 @@ describe('Watcher on a real folder', () => {
 		const timers = { setTimeout: (fn: () => void, ms: number) => setTimeout(fn, ms) as unknown as number, clearTimeout: (id: number) => clearTimeout(id) };
 		const w = new Watcher([dir, join(dir, 'missing')], () => calls++, timers, 50);
 		w.start();
-		writeFileSync(join(dir, 'a'), '1');
-		for (let i = 0; i < 60 && calls === 0; i++) await new Promise((r) => setTimeout(r, 50));
+		// macOS file events can take a moment to start: keep writing until one is noticed (10 s max).
+		for (let i = 0; i < 20 && calls === 0; i++) {
+			writeFileSync(join(dir, 'a'), String(i));
+			await new Promise((r) => setTimeout(r, 500));
+		}
 		w.stop();
 		expect(calls).toBeGreaterThanOrEqual(1);
 	});

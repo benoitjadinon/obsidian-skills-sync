@@ -75,3 +75,31 @@ describe('settings fields', () => {
 		expect(validateSkillName('my-skill', ['my-skill'])).toMatch(/exists/);
 	});
 });
+
+describe('validateProjectFolder', () => {
+	it('needs an existing folder, outside the vault skills folder, not used by another project', async () => {
+		const { validateProjectFolder } = await import('../src/core/validate');
+		const { mkdtempSync } = await import('fs');
+		const { tmpdir } = await import('os');
+		const { join } = await import('path');
+		const real = mkdtempSync(join(tmpdir(), 'ash-proj-'));
+		const ctx = { hubDir: '/v/Skills', others: [{ id: 'a', label: 'A', root: '/work/a', perAgentColumns: false }], home: HOME };
+		expect(validateProjectFolder('', ctx)).toMatch(/required/i);
+		expect(validateProjectFolder('relative/path', ctx)).toMatch(/absolute/);
+		expect(validateProjectFolder(join(real, 'missing'), ctx)).toMatch(/doesn't exist/);
+		expect(validateProjectFolder('/work/a', ctx)).toMatch(/already a project/);
+		expect(validateProjectFolder('/v', ctx)).toMatch(/vault/);
+		expect(validateProjectFolder(real, ctx)).toBeNull();
+	});
+});
+
+describe('validateProjectDir', () => {
+	it('is optional and relative to the project, without ..', async () => {
+		const { validateProjectDir } = await import('../src/core/validate');
+		expect(validateProjectDir('')).toBeNull();
+		expect(validateProjectDir('.claude/skills')).toBeNull();
+		expect(validateProjectDir('/abs/skills')).toMatch(/relative/);
+		expect(validateProjectDir('~/skills')).toMatch(/relative/);
+		expect(validateProjectDir('../x')).toMatch(/inside/);
+	});
+});

@@ -49,6 +49,13 @@
   - on new forms, show errors only for fields the user has touched.
 - Normalize as the user types where possible, for example `normalizeIdInput` for agent IDs.
 
+### Projects
+
+- A `ProjectConfig` (`settings.projects`) holds a root folder and `perAgentColumns`. `syncTargets()` (`core/projects.ts`) expands it into one sync target per distinct agent `projectDir`.
+- Each target has a `stateKey`: the project id in one-column mode, or `<id>-<folder>` per folder. It also has `createIn` set to the project root, so folders are created while the root exists.
+- The engine reads checkbox state through `stateKey ?? id`. The checkbox properties written to notes come from `stateKeys(targets)`, never from agent ids directly.
+- `switchStates` and `rewriteStates` move a project's choices when it switches between one column and per-folder columns.
+
 ### Base files
 
 - Obsidian saves note properties in view `order` lists **without** the `note.` prefix (`agent-claude`), while `properties:` keys may use either spelling.

@@ -7,7 +7,7 @@ import { Executor } from './executor';
 import { newSkillText, setMeta } from './frontmatter';
 import { groupSkills, uniqueName } from './group';
 import { findSymlinks, migrate } from './migrate';
-import type { SkillCopy, SkillGroup, SyncConfig } from './model';
+import type { AgentState, SkillCopy, SkillGroup, SyncConfig } from './model';
 import { VAULT } from './model';
 import { exists, scanAgent, scanVault } from './scan';
 import { validateSkillName } from './validate';
@@ -213,6 +213,23 @@ export async function removeAgentFromNotes(cfg: SyncConfig, agentId: string): Pr
 		const states = { ...v.meta.states };
 		delete states[agentId];
 		const raw = setMeta(v.rawSkillMd, { ...v.meta, states }, cfg.prefix, order);
+		await fsp.writeFile(join(v.copy.dir, 'SKILL.md'), raw);
+		changed.push(v.name);
+	}
+	return changed;
+}
+
+/** Rewrite every skill note's checkbox states (e.g. after switching a project's columns). Returns changed skills. */
+export async function rewriteStates(
+	cfg: SyncConfig,
+	fn: (states: Record<string, AgentState>) => Record<string, AgentState>,
+): Promise<string[]> {
+	const order = stateKeys(cfg.agents);
+	const changed: string[] = [];
+	for (const v of await scanVault(cfg)) {
+		const states = fn({ ...v.meta.states });
+		const raw = setMeta(v.rawSkillMd, { ...v.meta, states }, cfg.prefix, order);
+		if (raw === v.rawSkillMd) continue;
 		await fsp.writeFile(join(v.copy.dir, 'SKILL.md'), raw);
 		changed.push(v.name);
 	}

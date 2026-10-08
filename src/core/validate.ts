@@ -1,7 +1,8 @@
+import { existsSync } from 'fs';
 import { homedir } from 'os';
 import { isAbsolute, relative, resolve } from 'path';
 import { archiveRoot, expandHome } from './agents';
-import type { AgentConfig } from './model';
+import type { AgentConfig, ProjectConfig } from './model';
 
 /** Validators return a short user-facing error, or null when the value is fine. */
 export type Check = string | null;
@@ -103,5 +104,29 @@ export function validateSkillName(value: string, existing: string[]): Check {
 	if (!v) return 'Required.';
 	if (!SKILL_NAME_RE.test(v) || v.includes('..')) return 'Use letters, digits, spaces, dots, dashes or underscores.';
 	if (existing.includes(v)) return 'A skill with this name already exists.';
+	return null;
+}
+
+export function validateProjectFolder(
+	value: string,
+	ctx: { hubDir: string; others: ProjectConfig[]; home?: string },
+): Check {
+	const home = ctx.home ?? homedir();
+	const v = value.trim();
+	if (!v) return 'Required.';
+	const abs = expandHome(v, home);
+	if (!isAbsolute(abs)) return 'Use an absolute path, or one starting with ~.';
+	if (ctx.others.some((p) => resolve(expandHome(p.root, home)) === resolve(abs))) return 'This folder is already a project.';
+	if (within(abs, ctx.hubDir) || within(ctx.hubDir, abs)) return "Can't be the vault skills folder, a folder inside it, or a folder containing it.";
+	if (!existsSync(abs)) return "This folder doesn't exist.";
+	return null;
+}
+
+/** A project skills folder is relative to the project root (e.g. .claude/skills). */
+export function validateProjectDir(value: string): Check {
+	const v = value.trim();
+	if (!v) return null;
+	if (v.startsWith('/') || v.startsWith('~') || /^[A-Za-z]:/.test(v)) return 'Use a path relative to the project, for example .claude/skills.';
+	if (v.split('/').includes('..')) return 'Must stay inside the project.';
 	return null;
 }

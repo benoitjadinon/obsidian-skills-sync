@@ -3,7 +3,7 @@ import { existsSync } from 'fs';
 import { isAbsolute, relative, sep } from 'path';
 import { archiveRoot, availablePresets, contractHome, expandHome, PRESETS_SOURCE, slugify, validateAgentId } from '../core/agents';
 import type { AgentConfig } from '../core/model';
-import { normalizeIdInput, validateAgentFolder, validateArchiveFolder } from '../core/validate';
+import { normalizeIdInput, validateAgentFolder, validateArchiveFolder, validateProjectDir } from '../core/validate';
 import { showFieldError } from './fieldErrors';
 import { addFolderBrowse } from './folderPicker';
 
@@ -30,7 +30,7 @@ export class AgentModal extends Modal {
 	private draft: AgentConfig;
 	private readonly creating: boolean;
 	private idTouched = false;
-	private fields: Record<'name' | 'id' | 'path' | 'archive', Field | undefined> = { name: undefined, id: undefined, path: undefined, archive: undefined };
+	private fields: Record<'name' | 'id' | 'path' | 'archive' | 'project', Field | undefined> = { name: undefined, id: undefined, path: undefined, archive: undefined, project: undefined };
 	private saveButton?: ButtonComponent;
 	/** Fields the user has edited; errors show only for those (all of them when editing an existing agent). */
 	private touched = new Set<keyof AgentModal['fields']>();
@@ -130,6 +130,25 @@ export class AgentModal extends Modal {
 		});
 		this.fields.path = path;
 
+		// Known agents without a project skills folder (OpenClaw, Hermes profiles) can't have one.
+		const noProjectFolder = Boolean(d.preset) && !d.projectDir;
+		const project: Field = {
+			setting: new Setting(el)
+				.setName('Project skills folder')
+				.setDesc(noProjectFolder
+					? `${d.label || 'This agent'} doesn't read skills from code projects.`
+					: 'Folder inside a code project where this agent reads skills, for example .claude/skills. Used by projects. Leave empty if the agent has none.'),
+		};
+		project.setting.addText((t) => {
+			project.input = t;
+			t.setPlaceholder('.agent/skills').setValue(d.projectDir ?? '').setDisabled(noProjectFolder).onChange((v) => {
+				d.projectDir = v.trim() || undefined;
+				this.touched.add('project');
+				this.validate();
+			});
+		});
+		this.fields.project = project;
+
 		new Setting(el)
 			.setName('Layout')
 			.setDesc('Flat: one subfolder per skill. Category subfolders: skills sit inside nested category folders (some agents group skills this way); the category is kept in the path property of each skill note.')
@@ -192,6 +211,7 @@ export class AgentModal extends Modal {
 		f.path?.setting.setDesc(`Folder this ${d.kind} reads skills from. Type a path or use the folder button.${status}`);
 
 		const archiveError = validateArchiveFolder(d.archiveDir, { ...ctx, skillsFolder: d.path });
+		const projectError = validateProjectDir(d.projectDir ?? '');
 
 		const show = (key: keyof AgentModal['fields'], error: string | null, visible = this.touched.has(key)): void => {
 			const field = f[key];
@@ -202,8 +222,9 @@ export class AgentModal extends Modal {
 		show('id', idError, this.touched.has('name') || this.touched.has('id'));
 		show('path', pathError);
 		show('archive', archiveError);
+		show('project', projectError);
 
-		const ok = !nameError && !idError && !pathError && !archiveError;
+		const ok = !nameError && !idError && !pathError && !archiveError && !projectError;
 		this.saveButton?.setDisabled(!ok);
 		return ok;
 	}

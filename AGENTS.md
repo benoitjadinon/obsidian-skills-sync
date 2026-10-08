@@ -4,7 +4,7 @@
 
 - Plugin id `agent-skills-hub`, desktop only (`isDesktopOnly: true`, uses Node `fs`), `minAppVersion` 1.9.0.
 - Entry point: `src/main.ts` compiled to `main.js`. Release artifacts: `main.js`, `manifest.json`, `styles.css`.
-- Purpose: keep AI agent skills (folders with `SKILL.md`) in one vault folder, list them in a `.base` with one tri-state checkbox column per agent, and sync real copies (never symlinks) to and from each agent's skills folder. User-facing behavior is documented in `README.md`; the design is in `docs/superpowers/specs/2026-10-06-agent-skills-hub-design.md` and the build plan in `docs/superpowers/plans/2026-10-07-agent-skills-hub.md`.
+- Purpose: keep AI agent skills (folders with `SKILL.md`) in one vault folder, list them in a `.base` with one tri-state checkbox column per agent, and sync real copies (never symlinks) to and from each agent's skills folder. User-facing behavior is documented in `README.md`. Local design and planning notes may live in `docs/superpowers/` (git-ignored, not part of the repo).
 
 ### Architecture
 

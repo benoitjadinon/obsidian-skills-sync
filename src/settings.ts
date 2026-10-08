@@ -155,7 +155,7 @@ export class HubSettingTab extends PluginSettingTab {
 			el.createEl('p', { cls: 'setting-item-description', text: kind === 'agent' ? 'No agents yet.' : 'No project skills folders yet.' });
 		}
 		for (const a of items) {
-			const layout = a.layout === 'nested' ? 'category subfolders' : 'flat';
+			const layout = a.layout === 'nested' ? ' · category subfolders' : '';
 			const archive = a.archiveDir ? ` · archive ${a.archiveDir}` : '';
 			const missing = existsSync(expandHome(a.path)) ? '' : ' · folder not found';
 			const name = createFragment((f) => {
@@ -167,7 +167,7 @@ export class HubSettingTab extends PluginSettingTab {
 			});
 			new Setting(el)
 				.setName(name)
-				.setDesc(`${a.path} · ${layout}${archive} · ${s.propPrefix}${a.id}${missing}`)
+				.setDesc(`${a.path}${layout}${archive} · ${s.propPrefix}${a.id}${missing}`)
 				.addExtraButton((b) => b.setIcon('pencil').setTooltip('Edit').onClick(() => this.openForm(kind, a)))
 				.addExtraButton((b) => b.setIcon('trash').setTooltip('Remove').onClick(async () => {
 					const ok = await new ConfirmModal(

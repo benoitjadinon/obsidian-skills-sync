@@ -1,6 +1,7 @@
-import { App, Modal, moment, Notice, Setting } from 'obsidian';
+import { App, Modal, Notice, Setting } from 'obsidian';
 import { diffLines } from 'diff';
 import { writeConflictFiles } from '../core/conflictFiles';
+import { formatDateTime } from './dates';
 import { guardLostWindow } from './lostWindow';
 import { describeMergeError, resolveWithExternalTool } from '../core/externalMerge';
 import { conflictLabels, mergeSkill, textSimilarity } from '../core/merge';
@@ -94,8 +95,8 @@ export class ConflictModal extends Modal {
 			const card = cards.createDiv({ cls: 'ash-card' });
 			card.createEl('strong', { text: `${role}: ${this.holders(v)}` });
 			card.createDiv({ cls: 'ash-path', text: v.dir });
-			// Obsidian's moment follows the language chosen in Obsidian's settings.
-			card.createDiv({ text: `Modified ${moment(v.mtimeMs).format('LLL')}` });
+			// The computer's regional date format (Obsidian only knows the language).
+			card.createDiv({ text: `Modified ${formatDateTime(v.mtimeMs)}` });
 		}
 
 		this.renderSimilarityHint();

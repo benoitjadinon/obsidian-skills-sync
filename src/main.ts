@@ -106,7 +106,7 @@ export default class AgentSkillsHub extends Plugin {
 
 	private vaultBase(): string {
 		const adapter = this.app.vault.adapter;
-		if (!(adapter instanceof FileSystemAdapter)) throw new Error('Agent Skills Hub needs the desktop app.');
+		if (!(adapter instanceof FileSystemAdapter)) throw new Error('Skills Sync needs the desktop app.');
 		return adapter.getBasePath();
 	}
 
@@ -160,14 +160,14 @@ export default class AgentSkillsHub extends Plugin {
 			try {
 				const report = await runSync(this.config(), this.resolver);
 				const changes = report.applied.filter((a) => a.type !== 'conflict' && a.type !== 'setStates').length;
-				if (changes > 0) new Notice(`Agent skills: ${changes} change${changes === 1 ? '' : 's'} synced.`);
+				if (changes > 0) new Notice(`Synced ${changes} skill change${changes === 1 ? '' : 's'}.`);
 				if (report.errors.length > 0) {
-					for (const e of report.errors) console.error('[agent-skills-hub]', e);
-					new Notice(`Agent skills: ${report.errors.length} problem${report.errors.length === 1 ? '' : 's'}, see the developer console.`);
+					for (const e of report.errors) console.error('[skills-sync]', e);
+					new Notice(`Skill sync hit ${report.errors.length} problem${report.errors.length === 1 ? '' : 's'}, see the developer console.`);
 				}
 			} catch (e) {
-				console.error('[agent-skills-hub]', e);
-				new Notice('Agent skills: sync failed, see the developer console.');
+				console.error('[skills-sync]', e);
+				new Notice('Skill sync failed, see the developer console.');
 			}
 		});
 	}

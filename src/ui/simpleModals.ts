@@ -40,7 +40,7 @@ export class MigrationModal extends ConfirmModal {
 		super(
 			app,
 			'Replace symlinks with copies',
-			`${items.length} skill folder${items.length === 1 ? ' is a symlink' : 's are symlinks'}. Agent Skills Hub syncs real copies; replace them now?`,
+			`${items.length} skill folder${items.length === 1 ? ' is a symlink' : 's are symlinks'}. Skills Sync syncs real copies; replace them now?`,
 			'Replace with copies',
 		);
 	}

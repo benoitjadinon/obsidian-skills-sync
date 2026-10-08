@@ -166,7 +166,7 @@ export class HubSettingTab extends PluginSettingTab {
 					const ok = await new ConfirmModal(
 						this.app,
 						`Remove ${a.label}?`,
-						`Agent Skills Hub stops syncing ${a.path}. Its skill files and the ${s.propPrefix}${a.id} properties in your notes are kept.`,
+						`Skills Sync stops syncing ${a.path}. Its skill files and the ${s.propPrefix}${a.id} properties in your notes are kept.`,
 						'Remove',
 					).openAndWait();
 					if (!ok) return;

@@ -1,14 +1,14 @@
 # End-to-end checklist
 
-Manual check of Agent Skills Hub in a real Obsidian. Use a scratch vault and scratch agent folders only, never your real `~/.claude`, `~/.hermes`, … folders.
+Manual check of Skills Sync in a real Obsidian. Use a scratch vault and scratch agent folders only, never your real `~/.claude`, `~/.hermes`, … folders.
 
 ## Setup
 
 1. Run `npm run build`.
 2. Create a scratch vault.
-3. Copy `main.js`, `manifest.json` and `styles.css` to `<scratch>/.obsidian/plugins/agent-skills-hub/`.
+3. Copy `main.js`, `manifest.json` and `styles.css` to `<scratch>/.obsidian/plugins/skills-sync/`.
 4. Create the scratch agent folders, for example `mkdir -p ~/tmp/ash/claude ~/tmp/ash/hermes`.
-5. Before enabling the plugin, write `<scratch>/.obsidian/plugins/agent-skills-hub/data.json` containing `{"initialized": true, "agents": []}`. Otherwise the first start detects your real agent folders and syncs them.
+5. Before enabling the plugin, write `<scratch>/.obsidian/plugins/skills-sync/data.json` containing `{"initialized": true, "agents": []}`. Otherwise the first start detects your real agent folders and syncs them.
 6. Enable the plugin. In its settings, add custom agents:
    - `claude` → `~/tmp/ash/claude` (flat folder);
    - `hermes` → `~/tmp/ash/hermes`, layout **Category subfolders**, archive folder `.archive`.

@@ -56,7 +56,7 @@ export async function runExternalMerge(
 	input: { ours: string; base: string | null; theirs: string; initial: string },
 	ext = '.md',
 ): Promise<string | null> {
-	const dir = await fsp.mkdtemp(join(tmpdir(), 'agent-skills-hub-'));
+	const dir = await fsp.mkdtemp(join(tmpdir(), 'skills-sync-'));
 	const paths: Record<Slot, string> = {
 		ours: join(dir, `ours${ext}`), base: join(dir, `base${ext}`), theirs: join(dir, `theirs${ext}`), result: join(dir, `result${ext}`),
 	};

@@ -1,8 +1,8 @@
-# Agent Skills Hub
+# Skills Sync
 
 Keep all your AI agent skills in one Obsidian folder, decide in a table which agent gets which skill, and let the plugin keep real copies in sync with Claude Code, Codex, Hermes, Gemini CLI, OpenCode, Cursor and about 60 other agents.
 
-[Agent skills](https://docs.anthropic.com/en/docs/claude-code/skills) are folders with a `SKILL.md` file (plus optional `scripts/`, `references/`, …) that coding agents load from their own skills folder, such as `~/.claude/skills` or `~/.codex/skills`. Once you use several agents, the same skill ends up copied in several places, edited in some and updated by tools in others. Agent Skills Hub gives them one home in your vault and keeps every agent up to date.
+[Agent skills](https://docs.anthropic.com/en/docs/claude-code/skills) are folders with a `SKILL.md` file (plus optional `scripts/`, `references/`, …) that coding agents load from their own skills folder, such as `~/.claude/skills` or `~/.codex/skills`. Once you use several agents, the same skill ends up copied in several places, edited in some and updated by tools in others. Skills Sync gives them one home in your vault and keeps every agent up to date.
 
 ## Features
 
@@ -17,8 +17,8 @@ Keep all your AI agent skills in one Obsidian folder, decide in a table which ag
 
 ## Getting started
 
-1. Install **Agent Skills Hub** from **Settings → Community plugins → Browse**, and enable it. It runs on desktop only.
-2. Open **Settings → Agent Skills Hub**:
+1. Install **Skills Sync** from **Settings → Community plugins → Browse**, and enable it. It runs on desktop only.
+2. Open **Settings → Skills Sync**:
    - **Skills folder**: the vault folder that holds one subfolder per skill (default `Skills`).
    - **Agents**: the agents installed on your computer are already listed. Use **Add agent…** to add others: pick one of the known agents or enter your own skills folder. Use **Add project…** for a project's skills folder.
 3. Run the command **Create or update the skills base**. It creates `Skills/Skills.base` (or adds the agent columns to an existing base) and opens it.

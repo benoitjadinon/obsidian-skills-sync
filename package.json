@@ -1,5 +1,5 @@
 {
-	"name": "agent-skills-hub",
+	"name": "skills-sync",
 	"version": "1.0.0",
 	"description": "Keep your AI agent skills in one vault folder, choose which agents get each skill from a Base, and sync real copies to Claude Code, Codex, Hermes and other agents.",
 	"main": "main.js",

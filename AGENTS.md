@@ -1,8 +1,8 @@
-# Agent Skills Hub (Obsidian community plugin)
+# Skills Sync (Obsidian community plugin)
 
 ## Project overview
 
-- Plugin id `agent-skills-hub`, desktop only (`isDesktopOnly: true`, uses Node `fs`), `minAppVersion` 1.9.0.
+- Plugin id `skills-sync`, desktop only (`isDesktopOnly: true`, uses Node `fs`), `minAppVersion` 1.9.0.
 - Entry point: `src/main.ts` compiled to `main.js`. Release artifacts: `main.js`, `manifest.json`, `styles.css`.
 - Purpose: keep AI agent skills (folders with `SKILL.md`) in one vault folder, list them in a `.base` with one tri-state checkbox column per agent, and sync real copies (never symlinks) to and from each agent's skills folder. User-facing behavior is documented in `README.md`. Local design and planning notes may live in `docs/superpowers/` (git-ignored, not part of the repo).
 
@@ -136,7 +136,7 @@ npm run build
 - `tests/watcher.test.ts` is timing-based and can flake under heavy load; rerun before investigating.
 - `npm run build` runs `tsc` (`moduleResolution: bundler`, which `node-diff3` types need) and esbuild. `npm run lint` must report 0 errors; the remaining warnings are known.
 - Manual check: `docs/e2e-checklist.md`, in a scratch vault whose `data.json` is pre-seeded with `initialized: true` and `agents: []`, so the plugin doesn't auto-detect real agent folders.
-- Manual install: copy `main.js`, `manifest.json` and `styles.css` to `<Vault>/.obsidian/plugins/agent-skills-hub/`, then reload Obsidian and enable the plugin.
+- Manual install: copy `main.js`, `manifest.json` and `styles.css` to `<Vault>/.obsidian/plugins/skills-sync/`, then reload Obsidian and enable the plugin.
 
 ## Commands & settings
 

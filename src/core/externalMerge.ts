@@ -9,6 +9,31 @@ import type { ConflictRequest, Resolution } from './sync';
 
 type Slot = 'ours' | 'base' | 'theirs' | 'result';
 
+/** Ready-made commands for common merge tools (users can still type their own). */
+export const MERGE_TOOL_PRESETS: { id: string; label: string; command: string }[] = [
+	{ id: 'vscode', label: 'VS Code', command: 'code --wait --merge {ours} {theirs} {base} {result}' },
+	{ id: 'filemerge', label: 'FileMerge (Xcode)', command: 'opendiff {ours} {theirs} -ancestor {base} -merge {result}' },
+	{ id: 'kaleidoscope', label: 'Kaleidoscope', command: 'ksdiff --merge --output {result} --base {base} {ours} {theirs}' },
+	{ id: 'meld', label: 'Meld', command: 'meld {ours} {base} {theirs} --output {result}' },
+];
+
+/** First word of the command, for messages. */
+function toolName(template: string): string {
+	return template.trim().split(/\s+/)[0] ?? template;
+}
+
+/** Turn a failed merge-tool run into a short message for the user. */
+export function describeMergeError(err: unknown, template: string): string {
+	const tool = toolName(template);
+	const e = err as { code?: unknown; message?: unknown } | null;
+	const message = typeof e?.message === 'string' ? e.message : String(err);
+	if (e?.code === 127 || e?.code === 'ENOENT' || /not found|not recognized as an internal or external command/i.test(message)) {
+		return `Merge tool not found: "${tool}". Install it, add it to your PATH, or set a different command in settings.`;
+	}
+	const code = typeof e?.code === 'number' ? ` (code ${e.code})` : '';
+	return `The merge tool "${tool}" exited with an error${code}. Nothing was applied.`;
+}
+
 function quote(p: string): string {
 	return process.platform === 'win32' ? `"${p}"` : `'${p.replace(/'/g, `'\\''`)}'`;
 }

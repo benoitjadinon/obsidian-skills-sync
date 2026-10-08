@@ -56,15 +56,15 @@ The conflict dialog shows each version (vault, agents, and the inferred common b
 - **Keep vault version** / **Keep <agent>**: that version wins everywhere.
 - **Apply clean merge**: offered only when a three-way merge has no overlapping changes.
 - **Edit in Obsidian**: writes `<skill>/SKILL.conflict.md` (and `<file>.conflict` for other files) with git-style markers (`<<<<<<< vault`, `||||||| base`, `=======`, `>>>>>>> <agent>`). Sync of that skill pauses while the file exists. Remove the markers and save, or run **Resolve conflict for current skill**: the result becomes the new version, is pushed to the ticked agents, and the conflict file is deleted.
-- **Open merge tool**: writes ours, base, theirs and result to a temp folder and runs the **Merge tool command**. The result is applied when the tool exits without markers left.
+- **Open merge tool** (only when a merge tool is set in settings): writes ours, base, theirs and result to a temp folder and runs the command. The result is applied when the tool exits without markers left. If the tool isn't installed or fails, a notice says so and the dialog stays open with its other options.
 - **Keep as separate skills** / **Import as separate skills**: the versions are really different skills.
 - **Skip**: nothing is changed, `agent-conflict` is set, and you are asked again on the next sync.
 
-Merge tool command examples (placeholders `{ours}`, `{base}`, `{theirs}`, `{result}`; use an absolute path if the tool isn't found):
+The merge tool is optional (default: none). Pick a preset in **Settings → Merge tool** or type a custom command (placeholders `{ours}`, `{base}`, `{theirs}`, `{result}`; use an absolute path if the tool isn't found). Presets:
 
 | Tool | Command |
 |---|---|
-| VS Code (default) | `code --wait --merge {ours} {theirs} {base} {result}` |
+| VS Code | `code --wait --merge {ours} {theirs} {base} {result}` |
 | FileMerge | `opendiff {ours} {theirs} -ancestor {base} -merge {result}` |
 | Kaleidoscope | `ksdiff --merge --output {result} --base {base} {ours} {theirs}` |
 | Meld | `meld {ours} {base} {theirs} --output {result}` |

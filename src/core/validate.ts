@@ -90,7 +90,7 @@ export function validateBasePath(value: string): Check {
 
 export function validateMergeCommand(value: string): Check {
 	const v = value.trim();
-	if (!v) return 'Required.';
+	if (!v) return null; // optional: without a command the dialog offers no merge tool button
 	if (!v.includes('{result}')) return 'Must include {result}, the file the tool writes the merge to.';
 	if (!v.includes('{ours}') || !v.includes('{theirs}')) return 'Must include {ours} and {theirs}.';
 	return null;

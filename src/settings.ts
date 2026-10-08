@@ -1,4 +1,4 @@
-import { App, FileSystemAdapter, normalizePath, Notice, PluginSettingTab, Setting, type TextComponent } from 'obsidian';
+import { App, type DropdownComponent, FileSystemAdapter, normalizePath, Notice, PluginSettingTab, Setting, type TextComponent } from 'obsidian';
 import { existsSync } from 'fs';
 import { isAbsolute, join, relative, sep } from 'path';
 import { expandHome } from './core/agents';
@@ -7,6 +7,7 @@ import type AgentSkillsHub from './main';
 import { AgentModal } from './ui/AgentModal';
 import { showFieldError } from './ui/fieldErrors';
 import { addFolderBrowse } from './ui/folderPicker';
+import { MERGE_TOOL_PRESETS } from './core/externalMerge';
 import { validateBasePath, validateHubFolder, validateMergeCommand, validatePrefix } from './core/validate';
 import { ConfirmModal } from './ui/simpleModals';
 
@@ -29,7 +30,7 @@ export const DEFAULT_SETTINGS: HubSettings = {
 	agents: [],
 	autoPullExternal: 'ask',
 	autoSync: true,
-	mergeCommand: 'code --wait --merge {ours} {theirs} {base} {result}',
+	mergeCommand: '',
 	initialized: false,
 };
 
@@ -108,12 +109,33 @@ export class HubSettingTab extends PluginSettingTab {
 					s.autoPullExternal = v === 'auto' ? 'auto' : 'ask';
 					await this.plugin.saveSettings();
 				}));
+		const presetFor = (cmd: string): string => (cmd.trim() ? (MERGE_TOOL_PRESETS.find((p) => p.command === cmd.trim())?.id ?? 'custom') : '');
+		let mergeText: TextComponent | undefined;
+		let mergeDropdown: DropdownComponent | undefined;
 		const merge = new Setting(containerEl)
-			.setName('Merge tool command')
-			.setDesc('Placeholders: {ours} {base} {theirs} {result}. Use an absolute path if the tool is not found.');
-		merge.addText((t) => t.setValue(s.mergeCommand).onChange((v) => this.saveIfValid(merge, t, validateMergeCommand(v), () => {
-			s.mergeCommand = v.trim();
-		})));
+			.setName('Merge tool')
+			.setDesc('Optional. Used by "Open merge tool" in the conflict dialog; without one, conflicts are resolved in Obsidian. Placeholders: {ours} {base} {theirs} {result}. Use an absolute path if the tool is not found.')
+			.addDropdown((d) => {
+				mergeDropdown = d;
+				d.addOption('', 'None');
+				for (const p of MERGE_TOOL_PRESETS) d.addOption(p.id, p.label);
+				d.addOption('custom', 'Custom command');
+				d.setValue(presetFor(s.mergeCommand)).onChange((v) => {
+					if (v === 'custom') return mergeText?.inputEl.focus();
+					mergeText?.setValue(MERGE_TOOL_PRESETS.find((p) => p.id === v)?.command ?? '');
+					mergeText?.onChanged();
+				});
+			});
+		merge.addText((t) => {
+			mergeText = t;
+			t.setPlaceholder('tool {ours} {theirs} {base} {result}').setValue(s.mergeCommand).onChange((v) => {
+				mergeDropdown?.setValue(presetFor(v));
+				void this.saveIfValid(merge, t, validateMergeCommand(v), () => {
+					s.mergeCommand = v.trim();
+				});
+			});
+			t.inputEl.addClass('ash-wide-input');
+		});
 
 		this.renderList(containerEl, 'agent');
 		this.renderList(containerEl, 'project');
@@ -121,7 +143,12 @@ export class HubSettingTab extends PluginSettingTab {
 
 	private renderList(el: HTMLElement, kind: AgentConfig['kind']): void {
 		const s = this.plugin.settings;
-		new Setting(el).setName(kind === 'agent' ? 'Agents' : 'Projects').setHeading();
+		new Setting(el)
+			.setName(kind === 'agent' ? 'Agents' : 'Projects')
+			.setHeading()
+			.addButton((b) => b
+				.setButtonText(kind === 'agent' ? 'Add agent…' : 'Add project…')
+				.onClick(() => this.openForm(kind)));
 		const items = s.agents.filter((a) => a.kind === kind);
 		if (items.length === 0) {
 			el.createEl('p', { cls: 'setting-item-description', text: kind === 'agent' ? 'No agents yet.' : 'No project skills folders yet.' });
@@ -146,9 +173,6 @@ export class HubSettingTab extends PluginSettingTab {
 					await this.changed();
 				}));
 		}
-		new Setting(el).addButton((b) => b
-			.setButtonText(kind === 'agent' ? 'Add agent…' : 'Add project…')
-			.onClick(() => this.openForm(kind)));
 	}
 
 	private openForm(kind: AgentConfig['kind'], agent?: AgentConfig): void {

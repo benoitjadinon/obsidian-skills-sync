@@ -66,7 +66,7 @@ describe('settings fields', () => {
 	it('merge command: needs {result} and at least {ours} and {theirs}', () => {
 		expect(validateMergeCommand('code --wait --merge {ours} {theirs} {base} {result}')).toBeNull();
 		expect(validateMergeCommand('code {ours} {theirs}')).toMatch(/\{result\}/);
-		expect(validateMergeCommand('')).toMatch(/required/i);
+		expect(validateMergeCommand('')).toBeNull(); // optional: no merge tool button
 	});
 	it('skill name: folder-safe', () => {
 		expect(validateSkillName('my-skill', [])).toBeNull();

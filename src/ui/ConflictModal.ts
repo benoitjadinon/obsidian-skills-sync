@@ -1,7 +1,7 @@
 import { App, Modal, Notice, Setting } from 'obsidian';
 import { diffLines } from 'diff';
 import { writeConflictFiles } from '../core/conflictFiles';
-import { resolveWithExternalTool } from '../core/externalMerge';
+import { describeMergeError, resolveWithExternalTool } from '../core/externalMerge';
 import { conflictLabels, mergeSkill } from '../core/merge';
 import type { SkillCopy, SyncConfig } from '../core/model';
 import { isBinary } from '../core/normalize';
@@ -174,15 +174,19 @@ export class ConflictModal extends Modal {
 						const first = paths[0];
 						if (first) await this.deps.openPath(first);
 					});
-					add('Open merge tool', async () => {
-						try {
-							const r = await resolveWithExternalTool(this.req, this.deps.mergeCommand());
-							if (r) this.finish(r);
-							else new Notice('The merge tool left conflict markers, so nothing was applied.');
-						} catch (e) {
-							new Notice(`Merge tool failed: ${e instanceof Error ? e.message : String(e)}`);
-						}
-					});
+					const command = this.deps.mergeCommand().trim();
+					// Only offered when a merge tool is configured; a failure leaves the dialog open with its other options.
+					if (command) {
+						add('Open merge tool', async () => {
+							try {
+								const r = await resolveWithExternalTool(this.req, command);
+								if (r) this.finish(r);
+								else new Notice('The merge tool left conflict markers, so nothing was applied.');
+							} catch (e) {
+								new Notice(describeMergeError(e, command), 10000);
+							}
+						});
+					}
 				}
 				if (c.kind === 'diverged') add('Keep as separate skills', () => this.finish({ kind: 'split' }));
 			}

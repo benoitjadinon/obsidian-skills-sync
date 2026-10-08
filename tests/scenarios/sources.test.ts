@@ -91,7 +91,7 @@ describe('base Source column', () => {
 	it('is in the default base', () => {
 		const b = parse(defaultBase(o)) as B;
 		expect(b.properties['note.agent-source']?.displayName).toBe('Source');
-		expect(b.views[0]?.order).toContain('note.agent-source');
+		expect(b.views[0]?.order).toContain('agent-source');
 	});
 	it('is added to existing bases once', () => {
 		const existing = 'views:\n  - type: table\n    name: Table\n    order:\n      - file.name\n';
@@ -99,6 +99,6 @@ describe('base Source column', () => {
 		expect(ensureAgentColumns(once, o)).toBe(once);
 		const b = parse(once) as B;
 		expect(b.properties['note.agent-source']?.displayName).toBe('Source');
-		expect(b.views[0]?.order).toEqual(['file.name', 'note.agent-claude', 'note.agent-source']);
+		expect(b.views[0]?.order).toEqual(['file.name', 'agent-claude', 'agent-source']);
 	});
 });

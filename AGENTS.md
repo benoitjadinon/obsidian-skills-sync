@@ -45,6 +45,12 @@
   - on new forms, show errors only for fields the user has touched.
 - Normalize as the user types where possible, for example `normalizeIdInput` for agent IDs.
 
+### Base files
+
+- Obsidian saves note properties in view `order` lists **without** the `note.` prefix (`agent-claude`), while `properties:` keys may use either spelling.
+- `base.ts` treats `agent-x` and `note.agent-x` as the same column. Orders get the plain spelling and display names the `note.` key. Duplicates are removed, keeping the first.
+- Never compare base column ids without normalising them first (`bare()`).
+
 ### Updating the agent presets
 
 - `npm run presets:update [-- <tag>]` (`scripts/update-presets.mjs`) downloads `src/agents.ts` from vercel-labs/skills at a pinned tag (default in the script, currently `v1.7.1`). It evaluates the table in a child process with a fake `HOME` and an empty environment, then rewrites `src/core/agentPresets.generated.json`.

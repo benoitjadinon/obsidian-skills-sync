@@ -2,6 +2,7 @@ import { promises as fsp } from 'fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'path';
 import { archiveRoot } from './agents';
 import type { Action } from './engine';
+import { stateKeys } from './projects';
 import { emptyMeta, setMeta, toVaultText } from './frontmatter';
 import type { AgentConfig, AgentState, PluginMeta, SkillCopy, SkillGroup, SyncConfig } from './model';
 import { contentKey, exists, readSkillDir, sameBytes, toBytes, toText } from './scan';
@@ -26,7 +27,7 @@ export class Executor {
 	constructor(private readonly cfg: SyncConfig) {}
 
 	get order(): string[] {
-		return this.cfg.agents.map((a) => a.id);
+		return stateKeys(this.cfg.agents);
 	}
 
 	agent(id: string): AgentConfig {
@@ -76,7 +77,8 @@ export class Executor {
 
 	async pushFiles(g: SkillGroup, agentId: string, files: Map<string, Uint8Array>): Promise<void> {
 		const a = this.agent(agentId);
-		if (!(await exists(a.path))) return;
+		// Agent folders must exist; project folders are created while their project exists.
+		if (!(await exists(a.createIn ?? a.path))) return;
 		const existing = g.copies.find((c) => c.owner === agentId && !c.archived);
 		const dir = existing?.dir ?? this.agentTarget(a, g.vault?.meta.folder || g.name, g.vault?.meta.path ?? '');
 		await this.syncDir(dir, files, a.path);
@@ -90,7 +92,7 @@ export class Executor {
 		await this.writeVault(g.name, files, meta, v.rawSkillMd);
 		const key = contentKey(files);
 		for (const a of this.cfg.agents) {
-			if (meta.states[a.id] !== true) continue;
+			if (meta.states[a.stateKey ?? a.id] !== true) continue;
 			const c = g.copies.find((x) => x.owner === a.id && !x.archived);
 			if (c && c.key === key) continue;
 			await this.pushFiles(g, a.id, files);

@@ -1,4 +1,5 @@
 import type { AgentState, SkillCopy, SkillGroup, SyncConfig } from './model';
+import { stateKeys } from './projects';
 
 export type ConflictKind = 'import' | 'diverged' | 'external' | 'delete' | 'path';
 
@@ -44,8 +45,21 @@ function ownersOf(cs: SkillCopy[]): Record<string, string[]> {
 
 /** Owners holding any copy (active or archived), in configured agent order. */
 export function sourcesOf(owners: Iterable<string>, cfg: SyncConfig): string[] {
-	const held = new Set(owners);
-	return cfg.agents.map((a) => a.id).filter((id) => held.has(id));
+	const held = new Set([...owners].map((o) => stateKeyOf(cfg, o)));
+	return stateKeys(cfg.agents).filter((k) => held.has(k));
+}
+
+/** Checkbox property driving a sync target (project folders share their project's). */
+export function stateKeyOf(cfg: SyncConfig, owner: string): string {
+	return cfg.agents.find((a) => a.id === owner)?.stateKey ?? owner;
+}
+
+/** Checkbox states for a skill imported from these owners (archived owners: false, others: undecided). */
+export function importStates(cfg: SyncConfig, owners: string[], archivedOwners: string[] = []): Record<string, AgentState> {
+	const states: Record<string, AgentState> = Object.fromEntries(stateKeys(cfg.agents).map((k) => [k, null]));
+	for (const o of archivedOwners) states[stateKeyOf(cfg, o)] = false;
+	for (const o of owners) states[stateKeyOf(cfg, o)] = true;
+	return states;
 }
 
 export function importPath(g: SkillGroup, pool: SkillCopy[], cfg: SyncConfig): string {
@@ -64,9 +78,7 @@ function planImport(g: SkillGroup, copies: SkillCopy[], cfg: SyncConfig): Action
 	if (variants.length > 1) {
 		return [{ type: 'conflict', group: g, conflict: { kind: 'import', theirs: variants, owners: ownersOf(pool) } }];
 	}
-	const states: Record<string, AgentState> = Object.fromEntries(cfg.agents.map((a) => [a.id, null]));
-	for (const c of archived) states[c.owner] = false;
-	for (const c of active) states[c.owner] = true;
+	const states = importStates(cfg, active.map((c) => c.owner), archived.map((c) => c.owner));
 	const sources = sourcesOf(copies.map((c) => c.owner), cfg);
 	return [{ type: 'import', group: g, from, states, path: importPath(g, pool, cfg), folder: g.newFolder ?? '', sources }];
 }
@@ -80,14 +92,14 @@ export function planGroup(g: SkillGroup, cfg: SyncConfig): Action[] {
 	if (v.hasConflictFile) return [];
 	const actions: Action[] = [];
 
-	const missing = cfg.agents.filter((a) => !(a.id in v.meta.states));
+	const missing = stateKeys(cfg.agents).filter((k) => !(k in v.meta.states));
 	if (missing.length > 0) {
-		actions.push({ type: 'setStates', group: g, states: Object.fromEntries(missing.map((a) => [a.id, null])) });
+		actions.push({ type: 'setStates', group: g, states: Object.fromEntries(missing.map((k) => [k, null])) });
 	}
 
 	const consensus: SkillCopy[] = [];
 	for (const a of cfg.agents) {
-		const state = v.meta.states[a.id] ?? null;
+		const state = v.meta.states[a.stateKey ?? a.id] ?? null;
 		const active = copies.find((c) => c.owner === a.id && !c.archived);
 		const archived = copies.find((c) => c.owner === a.id && c.archived);
 		if (state === false && active) {

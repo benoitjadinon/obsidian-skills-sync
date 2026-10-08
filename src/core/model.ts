@@ -14,6 +14,20 @@ export interface AgentConfig {
 	preset?: string;
 	/** Skills folder relative to a code project (e.g. .claude/skills); absent when the agent has none. */
 	projectDir?: string;
+	/** Property whose checkbox drives this sync target; defaults to `id` (project folders share one). */
+	stateKey?: string;
+	/** For project folders: the project root. The skills folder may be created while this exists. */
+	createIn?: string;
+}
+
+/** A code project: its agents' project skills folders are synced from one column, or one per folder. */
+export interface ProjectConfig {
+	id: string;
+	label: string;
+	/** Project root (may start with "~"). */
+	root: string;
+	/** false: one column for the whole project; true: one column per project skills folder. */
+	perAgentColumns: boolean;
 }
 
 export interface SyncConfig {

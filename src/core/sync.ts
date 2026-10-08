@@ -1,12 +1,13 @@
 import { promises as fsp } from 'fs';
 import { join } from 'path';
 import type { Action, Conflict } from './engine';
-import { importPath, planGroup, sourcesOf } from './engine';
+import { importPath, importStates, planGroup, sourcesOf } from './engine';
+import { stateKeys } from './projects';
 import { Executor } from './executor';
 import { newSkillText, setMeta } from './frontmatter';
 import { groupSkills, uniqueName } from './group';
 import { findSymlinks, migrate } from './migrate';
-import type { AgentState, SkillCopy, SkillGroup, SyncConfig } from './model';
+import type { SkillCopy, SkillGroup, SyncConfig } from './model';
 import { VAULT } from './model';
 import { exists, scanAgent, scanVault } from './scan';
 import { validateSkillName } from './validate';
@@ -51,7 +52,7 @@ export function labelsFor(cfg: SyncConfig): Record<string, string> {
 
 export async function liveConfig(cfg: SyncConfig): Promise<SyncConfig> {
 	const agents = [];
-	for (const a of cfg.agents) if (await exists(a.path)) agents.push(a);
+	for (const a of cfg.agents) if (await exists(a.createIn ?? a.path)) agents.push(a);
 	return { ...cfg, agents };
 }
 
@@ -71,8 +72,7 @@ export async function applyResolution(ex: Executor, g: SkillGroup, c: Conflict, 
 			return;
 		case 'apply': {
 			if (c.kind === 'import') {
-				const states: Record<string, AgentState> = Object.fromEntries(cfg.agents.map((a) => [a.id, null]));
-				for (const owners of Object.values(c.owners)) for (const o of owners) if (o !== VAULT) states[o] = true;
+				const states = importStates(cfg, Object.values(c.owners).flat().filter((o) => o !== VAULT));
 				const sources = sourcesOf(g.copies.map((x) => x.owner), cfg);
 				await ex.importSkill(g.name, r.files, states, importPath(g, c.theirs, cfg), g.newFolder ?? '', sources);
 				return;
@@ -87,8 +87,7 @@ export async function applyResolution(ex: Executor, g: SkillGroup, c: Conflict, 
 			for (const t of c.theirs) {
 				const name = uniqueName(`${t.owner}-${g.name}`, taken);
 				taken.add(name);
-				const states: Record<string, AgentState> = Object.fromEntries(cfg.agents.map((a) => [a.id, null]));
-				for (const o of c.owners[t.key] ?? []) if (o !== VAULT) states[o] = true;
+				const states = importStates(cfg, (c.owners[t.key] ?? []).filter((o) => o !== VAULT));
 				await ex.importSkill(name, t.files, states, t.relPath, t.folder, sourcesOf(c.owners[t.key] ?? [], cfg));
 			}
 			if (g.vault) {
@@ -149,7 +148,7 @@ export async function createSkill(cfg: SyncConfig, name: string, description: st
 	if (await exists(dir)) throw new Error(`A skill named "${name}" already exists`);
 	await fsp.mkdir(dir, { recursive: true });
 	const path = join(dir, 'SKILL.md');
-	await fsp.writeFile(path, newSkillText(name, description, cfg.prefix, cfg.agents.map((a) => a.id)));
+	await fsp.writeFile(path, newSkillText(name, description, cfg.prefix, stateKeys(cfg.agents)));
 	return path;
 }
 
@@ -207,7 +206,7 @@ export async function fillMissingSources(cfg: SyncConfig): Promise<string[]> {
  * settings; `cfg` lists the remaining agents). Agent folders are not touched. Returns changed skills.
  */
 export async function removeAgentFromNotes(cfg: SyncConfig, agentId: string): Promise<string[]> {
-	const order = cfg.agents.map((a) => a.id).filter((id) => id !== agentId);
+	const order = stateKeys(cfg.agents).filter((id) => id !== agentId);
 	const changed: string[] = [];
 	for (const v of await scanVault(cfg)) {
 		if (!(agentId in v.meta.states)) continue;

@@ -249,7 +249,7 @@ export async function rewriteStates(
 }
 
 /**
- * "Tick the skills it already has" for an agent added earlier: clear its undecided (empty) property
+ * "Tick the skills already in its folder" for an agent added earlier: clear its undecided (empty) property
  * on skills it holds, so the next sync adopts them like for a newly added agent. Explicit choices
  * (true/false) are kept. Returns the skills whose property was cleared.
  */

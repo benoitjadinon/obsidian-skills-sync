@@ -247,7 +247,7 @@ export class HubSettingTab extends PluginSettingTab {
 			const row = new Setting(el)
 				.setName(name)
 				.setDesc(`${a.path}${layout}${archive} · ${s.propPrefix}${a.id}`)
-				.addExtraButton((b) => b.setIcon('list-checks').setTooltip('Tick the skills it already has').setDisabled(!available).onClick(() => void this.plugin.adoptExisting(a.id, a.label)))
+				.addExtraButton((b) => b.setIcon('list-checks').setTooltip('Tick the skills already in its folder').setDisabled(!available).onClick(() => void this.plugin.adoptExisting(a.id, a.label)))
 				.addExtraButton((b) => b.setIcon('pencil').setTooltip('Edit').onClick(() => this.openForm(kind, a)))
 				.addExtraButton((b) => b.setIcon('trash').setTooltip('Remove').onClick(async () => {
 					const r = await new RemoveAgentModal(this.app, a.label, a.path, `${s.propPrefix}${a.id} property`).openAndWait();

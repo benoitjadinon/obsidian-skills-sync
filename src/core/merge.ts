@@ -70,7 +70,13 @@ export function mergeSkill(
 	return { clean: conflicted.length === 0, files, conflicted };
 }
 
-const fmt = (ms: number): string => new Date(ms).toISOString().slice(0, 16).replace('T', ' ');
+/** Local date and time for conflict labels and markers, e.g. 2026-10-09 07:05 (never UTC). */
+export function formatLocal(ms: number): string {
+	const d = new Date(ms);
+	const p = (n: number): string => String(n).padStart(2, '0');
+	return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+const fmt = formatLocal;
 
 export function conflictLabels(c: Conflict, names: Record<string, string>): MergeLabels {
 	const t = c.theirs[0];

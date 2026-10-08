@@ -62,3 +62,11 @@ describe('textSimilarity', () => {
 		expect(textSimilarity('', '')).toBe(1);
 	});
 });
+
+describe('dates in conflict labels', () => {
+	it('use local time, not UTC', async () => {
+		const { formatLocal } = await import('../src/core/merge');
+		const d = new Date(2026, 9, 9, 7, 5); // 9 Oct 2026, 07:05 local
+		expect(formatLocal(d.getTime())).toBe('2026-10-09 07:05');
+	});
+});

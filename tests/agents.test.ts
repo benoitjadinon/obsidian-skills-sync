@@ -90,7 +90,8 @@ describe('agent origin', () => {
 		const { inferPreset } = await import('../src/core/agents');
 		expect(inferPreset(custom('claude', 'Claude Code', '~/.claude/skills'))).toBe('claude');
 		expect(inferPreset(custom('claude', 'Mine', '~/elsewhere/skills'))).toBeUndefined();
-		expect(inferPreset(custom('pi', 'pi', '~/.pi/agent/skills'))).toBeUndefined();
+		expect(inferPreset(custom('pi', 'pi', '~/.pi/agent/skills'))).toBe('pi'); // Pi is a known agent now
+		expect(inferPreset(custom('my-tool', 'My tool', '~/my-tool/skills'))).toBeUndefined();
 		expect(inferPreset({ ...custom('x', 'X'), preset: 'codex' })).toBe('codex');
 	});
 	it('lists preset agents first, then custom ones, each by name', async () => {

@@ -32,6 +32,7 @@ Because it's a regular Base, it's also yours to shape:
 - **Conflicts you can actually resolve.** When a skill changed in several places, a dialog shows each version with its folder and date, side by side, with a diff. You can keep one version, apply a clean three-way merge, edit the conflict in Obsidian with git-style markers, or open your merge tool (VS Code, FileMerge, Kaleidoscope, Meld, IntelliJ IDEA, WebStorm, or any command).
 - **About 70 agents known out of the box**, with their skills folders. The agents installed on your computer are found automatically. Custom agents and per-project skills folders (`<repo>/.claude/skills`) can be added too.
 - **Agents with category folders and archives**, like Hermes (`~/.hermes/skills/github/github-auth/`), with an archive folder anywhere you like.
+- **Profiles and sub-agents are agents of their own.** Each Hermes profile (`~/.hermes/profiles/<name>/skills`) and each OpenClaw agent (its workspace's `skills` folder) gets its own column, so you can give a profile its own set of skills.
 
 ## Getting started
 

@@ -2,6 +2,7 @@
 // (MIT, https://github.com/vercel-labs/skills). Usage: npm run presets:update [-- <tag>]
 // The table is evaluated in a child process with a fake HOME and an empty environment, so paths
 // come out as "~/…" and no local env overrides (CLAUDE_CONFIG_DIR, …) leak in.
+// Every agent with a global folder under home is kept, even when several share one folder.
 import { build } from 'esbuild';
 import { execFileSync } from 'child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
@@ -24,7 +25,7 @@ try {
 	writeFileSync(
 		join(dir, 'entry.ts'),
 		`import { agents } from './agents.ts';
-const out = Object.values(agents).map((a: any) => ({ name: a.name, displayName: a.displayName, globalSkillsDir: a.globalSkillsDir ?? null }));
+const out = Object.values(agents).map((a: any) => ({ name: a.name, displayName: a.displayName, globalSkillsDir: a.globalSkillsDir ?? null, skillsDir: a.skillsDir ?? null }));
 process.stdout.write(JSON.stringify(out));
 `,
 	);
@@ -53,10 +54,16 @@ process.stdout.write(JSON.stringify(out));
 	for (const r of rows) {
 		if (typeof r.name !== 'string' || typeof r.displayName !== 'string') throw new Error(`Unexpected agent shape: ${JSON.stringify(r)}`);
 		if (typeof r.globalSkillsDir !== 'string' || !r.globalSkillsDir.startsWith(`${FAKE_HOME}/`)) continue; // no global folder, or not under home
-		const path = `~${r.globalSkillsDir.slice(FAKE_HOME.length)}`;
-		if (seen.has(path)) continue; // several agents share one folder (e.g. ~/.agents/skills): keep the first
-		seen.add(path);
-		presets.push({ name: r.name, label: r.displayName, path });
+		if (seen.has(r.name)) continue;
+		seen.add(r.name);
+		// Agents sharing a folder (e.g. ~/.agents/skills) are all kept; the plugin resolves overlaps.
+		presets.push({
+			name: r.name,
+			label: r.displayName,
+			path: `~${r.globalSkillsDir.slice(FAKE_HOME.length)}`,
+			// Project-relative skills folder (e.g. .claude/skills), used for project columns.
+			projectDir: typeof r.skillsDir === 'string' && !r.skillsDir.startsWith('/') ? r.skillsDir : null,
+		});
 	}
 	if (presets.length < 10) throw new Error(`Only ${presets.length} presets extracted; the source format probably changed`);
 	writeFileSync(OUT, `${JSON.stringify({ source: `vercel-labs/skills@${TAG}`, presets }, null, '\t')}\n`);

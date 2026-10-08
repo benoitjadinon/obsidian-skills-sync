@@ -1,7 +1,7 @@
 import { App, type ButtonComponent, Modal, Setting, type TextComponent } from 'obsidian';
 import { existsSync } from 'fs';
 import { isAbsolute, relative, sep } from 'path';
-import { archiveRoot, availablePresets, contractHome, expandHome, PRESETS, PRESETS_SOURCE, slugify, validateAgentId } from '../core/agents';
+import { archiveRoot, availablePresets, contractHome, expandHome, PRESETS_SOURCE, slugify, validateAgentId } from '../core/agents';
 import type { AgentConfig } from '../core/model';
 import { normalizeIdInput, validateAgentFolder, validateArchiveFolder } from '../core/validate';
 import { showFieldError } from './fieldErrors';
@@ -74,8 +74,9 @@ export class AgentModal extends Modal {
 					.addDropdown((dd) => {
 						dd.addOption('', 'Custom');
 						for (const { preset, installed } of presets) dd.addOption(preset.id, `${preset.label}${installed ? ' (installed)' : ''} — ${preset.path}`);
-						dd.setValue(PRESETS.some((p) => p.id === d.id) ? d.id : '').onChange((v) => {
-							const p = PRESETS.find((x) => x.id === v);
+						const known = presets.map((x) => x.preset);
+						dd.setValue(known.some((p) => p.id === d.id) ? d.id : '').onChange((v) => {
+							const p = known.find((x) => x.id === v);
 							this.draft = p ? { ...p } : this.blank();
 							this.idTouched = Boolean(p);
 							this.render();

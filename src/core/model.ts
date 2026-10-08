@@ -12,6 +12,8 @@ export interface AgentConfig {
 	archiveDir: string;
 	/** Id of the known agent (preset) this one was created from; absent for custom agents. */
 	preset?: string;
+	/** Skills folder relative to a code project (e.g. .claude/skills); absent when the agent has none. */
+	projectDir?: string;
 }
 
 export interface SyncConfig {

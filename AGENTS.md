@@ -15,7 +15,11 @@
   - `merge.ts`, `conflictFiles.ts`, `externalMerge.ts`: three-way merge, `SKILL.conflict.md`, and the external merge tool.
   - `migrate.ts`: symlink → copy migration.
   - `base.ts`: `.base` generation and column updates.
-  - `agents.ts`: agent presets, built from `agentPresets.generated.json` plus a small `OVERRIDES` map (short legacy ids like `claude`, the shared `~/.agents` label, and the Hermes layout and archive).
+  - `agents.ts`: agent presets.
+    - `PRESETS` is built from `agentPresets.generated.json` plus `OVERRIDES`, keyed by vercel agent name: short legacy ids such as `claude`, Cline's and Pi's own folders, the Hermes layout and archive, and no project folder for OpenClaw.
+    - Agents sharing `~/.agents/skills` collapse into one "Shared agents folder" entry.
+    - `presetsFor(home)` adds what's discovered on disk: each Hermes profile (`~/.hermes/profiles/<name>/skills`) and each OpenClaw agent (`<workspace>/skills`, read from `<state>/openclaw.json` and `<state>/agents/*`, with `<state>` being `~/.openclaw`, `~/.clawdbot` or `~/.moltbot`).
+    - Always use `presetsFor()` for detection and the preset picker, never `PRESETS` directly.
   - `watcher.ts`: `fs.watch` with debounce.
 - The Obsidian layer: `main.ts` (commands, vault events, watcher gating via `exclusive()`), `settings.ts`, and `ui/` (modals, and `ObsidianResolver`, the resolver backed by them).
 

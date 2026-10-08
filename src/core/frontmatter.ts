@@ -1,3 +1,4 @@
+import { parse as parseYaml } from 'yaml';
 import type { AgentState, PluginMeta } from './model';
 
 export interface FmEntry {
@@ -180,4 +181,35 @@ export function setMeta(vaultText: string, meta: PluginMeta, prefix: string, age
 export function newSkillText(name: string, description: string, prefix: string, agentOrder: string[]): string {
 	const agentText = `---\nname: ${scalar(name)}\ndescription: ${JSON.stringify(description)}\n---\n\n# ${name}\n`;
 	return toVaultText(agentText, null, prefix, { ...emptyMeta(), sources: [] }, agentOrder);
+}
+
+/** Display form of a frontmatter value: strings as is, anything else as compact JSON. */
+function showValue(v: unknown): string {
+	return typeof v === 'string' ? v : JSON.stringify(v);
+}
+
+/**
+ * Properties whose values differ between two SKILL.md texts (compared by value, so quoting or list
+ * style don't count), in the order they appear (left first, then right-only keys).
+ */
+export function propertyDiff(left: string, right: string): { key: string; left?: string; right?: string }[] {
+	const values = (text: string): Map<string, unknown> => {
+		const out = new Map<string, unknown>();
+		for (const e of parseFrontmatter(text).entries) {
+			if (!e.key) continue;
+			try {
+				const parsed = parseYaml(e.raw) as Record<string, unknown> | null;
+				out.set(e.key, parsed?.[e.key] ?? null);
+			} catch {
+				out.set(e.key, e.raw.trim());
+			}
+		}
+		return out;
+	};
+	const l = values(left);
+	const r = values(right);
+	const keys = [...l.keys(), ...[...r.keys()].filter((k) => !l.has(k))];
+	return keys
+		.filter((k) => JSON.stringify(l.get(k)) !== JSON.stringify(r.get(k)))
+		.map((k) => ({ key: k, left: l.has(k) ? showValue(l.get(k)) : undefined, right: r.has(k) ? showValue(r.get(k)) : undefined }));
 }

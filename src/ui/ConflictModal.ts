@@ -5,6 +5,7 @@ import { guardLostWindow } from './lostWindow';
 import { describeMergeError, resolveWithExternalTool } from '../core/externalMerge';
 import { conflictLabels, mergeSkill } from '../core/merge';
 import type { SkillCopy, SyncConfig } from '../core/model';
+import { propertyDiff } from '../core/frontmatter';
 import { isBinary } from '../core/normalize';
 import { fileKey, toText } from '../core/scan';
 import type { ConflictRequest, Resolution } from '../core/sync';
@@ -126,6 +127,23 @@ export class ConflictModal extends Modal {
 		const leftName = c.ours ? 'Vault' : this.holders(left ?? right ?? c.theirs[0]!);
 		const rightName = right ? this.holders(right) : 'Agent';
 
+		// 0. Properties whose values differ (SKILL.md), compared by value, not formatting.
+		if (left && right && this.file === 'SKILL.md') {
+			const rows = propertyDiff(textOf(left, this.file), textOf(right, this.file));
+			if (rows.length > 0) {
+				el.createEl('h4', { text: 'Properties that differ' });
+				const table = el.createEl('table', { cls: 'ash-props' });
+				const head = table.createEl('tr');
+				for (const h of ['Property', leftName, rightName]) head.createEl('th', { text: h });
+				for (const row of rows) {
+					const tr = table.createEl('tr');
+					tr.createEl('td', { cls: 'ash-prop-key', text: row.key });
+					tr.createEl('td', { cls: row.left === undefined ? 'ash-prop-missing' : 'ash-del', text: row.left ?? '(none)' });
+					tr.createEl('td', { cls: row.right === undefined ? 'ash-prop-missing' : 'ash-add', text: row.right ?? '(none)' });
+				}
+			}
+		}
+
 		// 1. The differences first, full height: only the dialog scrolls (its buttons stay pinned).
 		if (left && right) {
 			const head = el.createDiv({ cls: 'ash-diff-head' });
@@ -236,7 +254,8 @@ export class ConflictModal extends Modal {
 						});
 					}
 				}
-				if (c.kind === 'diverged') add('Keep as separate skills', () => this.finish({ kind: 'split' }));
+				// Same name, but maybe a different skill: keep both.
+				if (c.kind === 'diverged' || c.kind === 'external') add('Keep as separate skills', () => this.finish({ kind: 'split' }));
 			}
 		}
 		add('Skip', () => this.finish({ kind: 'skip' }));

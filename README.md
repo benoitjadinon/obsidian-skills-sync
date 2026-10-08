@@ -90,13 +90,15 @@ Comparisons ignore formatting noise: line endings, trailing spaces, blank lines 
 
 ## Resolving conflicts
 
-The conflict dialog lists every version (the vault, the agents, and the common original when one can be found), with folders, dates, the files side by side and a diff. You can:
+Skills are matched by folder name, then compared on their whole content (body, other files and property values). Only identical copies are treated as the same without asking.
+
+The conflict dialog lists every version (the vault, the agents, and the common original when one can be found) with folders and dates, a table of the properties whose values differ, then the changes (unchanged lines folded) and, collapsed, the full versions side by side. You can:
 
 - **Keep** the vault version or one of the agents' versions; it then wins everywhere.
 - **Apply clean merge**, offered when the changes don't overlap.
 - **Edit in Obsidian**: the plugin writes `SKILL.conflict.md` with git-style markers (`<<<<<<< vault`, `||||||| base`, `=======`, `>>>>>>> agent`). Remove the markers and save, and the result is applied and synced.
 - **Open merge tool**, if you chose one in settings.
-- **Keep as separate skills**, when the versions are really different skills.
+- **Keep as separate skills**, when the versions are really different skills that happen to share a name.
 - **Skip**, to decide later.
 
 The merge tool is optional. Pick one in **Settings → Merge tool**, or enter any command using the placeholders `{ours}`, `{base}`, `{theirs}` and `{result}`:

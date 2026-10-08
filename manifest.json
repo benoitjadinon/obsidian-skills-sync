@@ -1,7 +1,7 @@
 {
 	"id": "skills-sync",
 	"name": "Skills Sync",
-	"version": "1.0.6",
+	"version": "1.0.7",
 	"minAppVersion": "1.9.0",
 	"description": "Your AI agent skills as a Base: edit them as Markdown notes, tick one checkbox column per agent, and keep real copies in sync with Claude Code, Codex, Hermes and other agents.",
 	"author": "Benoit Jadinon",

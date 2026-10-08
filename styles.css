@@ -185,3 +185,30 @@ input.ash-invalid {
 	border-top: 1px solid var(--background-modifier-border);
 	box-shadow: 0 -6px 12px -8px rgba(0, 0, 0, 0.35);
 }
+.ash-props {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: var(--font-smallest);
+	margin-bottom: var(--size-4-3);
+}
+.ash-props th,
+.ash-props td {
+	padding: var(--size-2-2) var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	text-align: start;
+	vertical-align: top;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+.ash-props th {
+	color: var(--text-muted);
+	font-weight: var(--font-semibold);
+}
+.ash-prop-key {
+	font-family: var(--font-monospace);
+	white-space: nowrap;
+}
+.ash-prop-missing {
+	color: var(--text-faint);
+	font-style: italic;
+}

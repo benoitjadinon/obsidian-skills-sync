@@ -1,6 +1,6 @@
 {
 	"name": "skills-sync",
-	"version": "1.0.6",
+	"version": "1.0.7",
 	"description": "Your AI agent skills as a Base: edit them as Markdown notes, tick one checkbox column per agent, and keep real copies in sync with Claude Code, Codex, Hermes and other agents.",
 	"main": "main.js",
 	"type": "module",

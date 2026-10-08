@@ -83,3 +83,18 @@ describe('newSkillText', () => {
 		expect(readMeta(v, P).states).toEqual({ claude: null, codex: null, gemini: null });
 	});
 });
+
+describe('propertyDiff', () => {
+	it('lists the properties whose values differ (by value, not formatting), in order', async () => {
+		const { propertyDiff } = await import('../src/core/frontmatter');
+		const a = '---\nname: x\ndescription: "Old text"\ntags: [a, b]\nversion: 1\n---\nbody\n';
+		const b = '---\nname: x\ndescription: New text\ntags:\n  - a\n  - b\nlicense: MIT\n---\nbody\n';
+		expect(propertyDiff(a, b)).toEqual([
+			{ key: 'description', left: 'Old text', right: 'New text' },
+			{ key: 'version', left: '1', right: undefined },
+			{ key: 'license', left: undefined, right: 'MIT' },
+		]);
+		expect(propertyDiff('no frontmatter', '---\nname: y\n---\n')).toEqual([{ key: 'name', left: undefined, right: 'y' }]);
+		expect(propertyDiff(a, a)).toEqual([]);
+	});
+});

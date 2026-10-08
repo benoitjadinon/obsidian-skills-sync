@@ -3,7 +3,7 @@ import { join } from 'path';
 import { describe, expect, it } from 'vitest';
 import { readMeta, setMeta } from '../../src/core/frontmatter';
 import { deleteEverywhere, removeFromAgents, runSync } from '../../src/core/sync';
-import { T0, T1, skillMd } from '../helpers';
+import { T0, T1, put, skillMd, tree } from '../helpers';
 import { keep, StubResolver, world } from './harness';
 
 const hermesWorld = () => world([{ id: 'claude' }, { id: 'hermes', layout: 'nested', archiveDir: '.archive' }]);
@@ -91,5 +91,28 @@ describe('delete everywhere / remove from agents', () => {
 		w.put('claude', { 'x/SKILL.md': skillMd('x') }, T0);
 		expect(await removeFromAgents(w.cfg, 'x')).toHaveLength(1);
 		expect(w.tree('claude')).toEqual({});
+	});
+});
+
+describe('archive folder outside the agent folder', () => {
+	it('imports from it, restores from it and archives into it', async () => {
+		const base = hermesWorld();
+		const external = join(base.root, 'elsewhere', 'hermes-archive');
+		const hermes = base.cfg.agents.find((a) => a.id === 'hermes');
+		if (!hermes) throw new Error('no hermes');
+		hermes.archiveDir = external;
+		put(external, { 'foo/SKILL.md': skillMd('foo') }, T0);
+		await runSync(base.cfg, new StubResolver());
+		expect(readMeta(base.tree('vault')['foo/SKILL.md'] ?? '', 'agent-').states).toEqual({ claude: null, hermes: false });
+
+		setStates(base, 'foo', { hermes: true });
+		await runSync(base.cfg, new StubResolver());
+		expect(tree(external)).toEqual({});
+		expect(base.tree('hermes')['foo/SKILL.md']).toBe(skillMd('foo'));
+
+		setStates(base, 'foo', { hermes: false });
+		await runSync(base.cfg, new StubResolver());
+		expect(base.tree('hermes')).toEqual({});
+		expect(tree(external)['foo/SKILL.md']).toBe(skillMd('foo'));
 	});
 });

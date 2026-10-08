@@ -1,6 +1,7 @@
 import { App, Modal, Notice, Setting, type TextComponent } from 'obsidian';
 import { existsSync } from 'fs';
-import { availablePresets, contractHome, expandHome, PRESETS, PRESETS_SOURCE, slugify, validateAgentId } from '../core/agents';
+import { isAbsolute, relative, sep } from 'path';
+import { archiveRoot, availablePresets, contractHome, expandHome, PRESETS, PRESETS_SOURCE, slugify, validateAgentId } from '../core/agents';
 import type { AgentConfig } from '../core/model';
 import { addFolderBrowse } from './folderPicker';
 
@@ -50,10 +51,10 @@ export class AgentModal extends Modal {
 			if (presets.length > 0) {
 				new Setting(el)
 					.setName('Start from')
-					.setDesc(`Fill the form with a known agent (${PRESETS_SOURCE}), or start from scratch. Agents found on this computer are listed first.`)
+					.setDesc(`Fill the form with a known agent (${PRESETS_SOURCE}), or start from scratch. Agents installed on this computer are listed first.`)
 					.addDropdown((dd) => {
 						dd.addOption('', 'Custom');
-						for (const { preset, found } of presets) dd.addOption(preset.id, `${preset.label}${found ? ' (found)' : ''} — ${preset.path}`);
+						for (const { preset, installed } of presets) dd.addOption(preset.id, `${preset.label}${installed ? ' (installed)' : ''} — ${preset.path}`);
 						dd.setValue(PRESETS.some((p) => p.id === d.id) ? d.id : '').onChange((v) => {
 							const p = PRESETS.find((x) => x.id === v);
 							this.draft = p ? { ...p } : { id: '', label: '', path: '', kind: d.kind, layout: 'flat', archiveDir: '' };
@@ -122,10 +123,23 @@ export class AgentModal extends Modal {
 				.setValue(d.layout)
 				.onChange((v) => (d.layout = v === 'nested' ? 'nested' : 'flat')));
 
-		new Setting(el)
+		let archiveText: TextComponent | undefined;
+		const archiveSetting = new Setting(el)
 			.setName('Archive folder')
-			.setDesc('Optional folder (inside the skills folder) where this agent keeps disabled skills, for example .archive. When set, unticking moves the skill there instead of deleting it, and ticking moves it back. Leave empty if the agent has none.')
-			.addText((t) => t.setPlaceholder('.archive').setValue(d.archiveDir).onChange((v) => (d.archiveDir = v.trim())));
+			.setDesc('Optional folder where this agent keeps disabled skills. When set, unticking moves the skill there instead of deleting it, and ticking moves it back. Relative to the skills folder (.archive), or anywhere else (~/archives/hermes-skills, /mnt/backup/skills). Leave empty if the agent has none.')
+			.addText((t) => {
+				archiveText = t;
+				t.setPlaceholder('.archive').setValue(d.archiveDir).onChange((v) => (d.archiveDir = v.trim()));
+				t.inputEl.addClass('ash-wide-input');
+			});
+		addFolderBrowse(archiveSetting, () => archiveText, `Archive folder for ${d.label || noun}`, {
+			toAbs: (v) => archiveRoot({ ...this.draft, path: expandHome(this.draft.path), archiveDir: v }) ?? expandHome(this.draft.path),
+			fromAbs: (abs) => {
+				const skills = expandHome(this.draft.path);
+				const rel = skills ? relative(skills, abs) : '';
+				return skills && rel && !rel.startsWith('..') && !isAbsolute(rel) ? rel.split(sep).join('/') : contractHome(abs);
+			},
+		});
 
 		new Setting(el)
 			.addButton((b) => b.setButtonText('Cancel').onClick(() => this.close()))
@@ -154,7 +168,7 @@ export class AgentModal extends Modal {
 			const err = validateAgentId(d.id, this.opts.existing);
 			if (err) return void new Notice(err);
 		}
-		if (d.archiveDir.includes('..') || d.archiveDir.startsWith('/')) return void new Notice('The archive folder must be inside the skills folder.');
+		if (d.archiveDir && archiveRoot({ ...d, path: expandHome(d.path) }) === expandHome(d.path)) return void new Notice('The archive folder must differ from the skills folder.');
 		await this.opts.onSave({ ...d });
 		this.close();
 	}

@@ -1,6 +1,7 @@
 import { promises as fsp } from 'fs';
 import { createHash } from 'crypto';
-import { join, relative, sep } from 'path';
+import { join, relative, resolve, sep } from 'path';
+import { archiveRoot } from './agents';
 import { parse as parseYamlText } from 'yaml';
 import { parseFrontmatter, readMeta, toAgentText } from './frontmatter';
 import type { AgentConfig, SkillCopy, SyncConfig, VaultSkill } from './model';
@@ -109,6 +110,7 @@ async function makeCopy(
 
 interface Found { dir: string; folder: string; relPath: string; symlinkTarget?: string }
 
+/** skip: absolute folders not to descend into (an archive living inside the agent folder). */
 async function walkSkills(root: string, rel: string, out: Found[], skip: Set<string>, recursive: boolean): Promise<void> {
 	let ents;
 	try {
@@ -117,8 +119,8 @@ async function walkSkills(root: string, rel: string, out: Found[], skip: Set<str
 		return;
 	}
 	for (const ent of ents) {
-		if (ent.name.startsWith('.') || skip.has(ent.name)) continue;
 		const dir = join(root, rel, ent.name);
+		if (ent.name.startsWith('.') || skip.has(resolve(dir))) continue;
 		const st = await fsp.stat(dir).catch(() => null);
 		if (!st?.isDirectory()) continue;
 		if (await exists(join(dir, 'SKILL.md'))) {
@@ -132,11 +134,12 @@ async function walkSkills(root: string, rel: string, out: Found[], skip: Set<str
 export async function scanAgent(agent: AgentConfig): Promise<SkillCopy[]> {
 	if (!(await exists(agent.path))) return [];
 	const found: Found[] = [];
-	await walkSkills(agent.path, '', found, new Set(agent.archiveDir ? [agent.archiveDir] : []), agent.layout === 'nested');
+	const archive = archiveRoot(agent);
+	await walkSkills(agent.path, '', found, new Set(archive ? [resolve(archive)] : []), agent.layout === 'nested');
 	const copies = await Promise.all(found.map((f) => makeCopy(agent.id, f.dir, f.folder, f.relPath, false, f.symlinkTarget)));
-	if (agent.archiveDir) {
+	if (archive) {
 		const arch: Found[] = [];
-		await walkSkills(join(agent.path, agent.archiveDir), '', arch, new Set(), true);
+		await walkSkills(archive, '', arch, new Set(), true);
 		copies.push(...(await Promise.all(arch.map((f) => makeCopy(agent.id, f.dir, f.folder, f.relPath, true)))));
 	}
 	return copies;

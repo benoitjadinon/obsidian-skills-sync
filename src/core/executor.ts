@@ -1,5 +1,6 @@
 import { promises as fsp } from 'fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'path';
+import { archiveRoot } from './agents';
 import type { Action } from './engine';
 import { emptyMeta, setMeta, toVaultText } from './frontmatter';
 import type { AgentConfig, AgentState, PluginMeta, SkillCopy, SkillGroup, SyncConfig } from './model';
@@ -106,25 +107,37 @@ export class Executor {
 		v.rawSkillMd = raw;
 	}
 
-	async remove(copy: SkillCopy): Promise<void> {
+	/** Folder a copy must stay inside: the archive folder for archived copies, else the agent folder. */
+	private rootOf(copy: SkillCopy): string {
 		const a = this.agent(copy.owner);
-		assertInside(copy.dir, a.path);
+		return copy.archived ? (archiveRoot(a) ?? a.path) : a.path;
+	}
+
+	async remove(copy: SkillCopy): Promise<void> {
+		assertInside(copy.dir, this.rootOf(copy));
 		await fsp.rm(copy.dir, { recursive: true, force: true });
 	}
 
-	async move(copy: SkillCopy, toDir: string): Promise<void> {
-		const a = this.agent(copy.owner);
-		assertInside(copy.dir, a.path);
-		assertInside(toDir, a.path);
+	async move(copy: SkillCopy, toDir: string, toRoot: string = this.agent(copy.owner).path): Promise<void> {
+		assertInside(copy.dir, this.rootOf(copy));
+		assertInside(toDir, toRoot);
 		await fsp.rm(toDir, { recursive: true, force: true });
 		await fsp.mkdir(dirname(toDir), { recursive: true });
-		await fsp.rename(copy.dir, toDir);
+		try {
+			await fsp.rename(copy.dir, toDir);
+		} catch (e) {
+			// Archive on another volume: rename can't cross devices.
+			if ((e as NodeJS.ErrnoException).code !== 'EXDEV') throw e;
+			await fsp.cp(copy.dir, toDir, { recursive: true });
+			await fsp.rm(copy.dir, { recursive: true, force: true });
+		}
 	}
 
 	async archive(copy: SkillCopy): Promise<void> {
 		const a = this.agent(copy.owner);
-		if (!a.archiveDir) return this.remove(copy);
-		await this.move(copy, join(a.path, a.archiveDir, copy.folder));
+		const root = archiveRoot(a);
+		if (!root) return this.remove(copy);
+		await this.move(copy, join(root, copy.folder), root);
 	}
 
 	async unarchive(g: SkillGroup, copy: SkillCopy): Promise<void> {

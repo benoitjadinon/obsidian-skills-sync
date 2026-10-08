@@ -59,7 +59,7 @@ describe('generated presets', () => {
 		expect(ids.size).toBe(PRESETS.length);
 		expect(new Set(PRESETS.map((p) => p.path)).size).toBe(PRESETS.length);
 	});
-	it('availablePresets hides configured folders and lists found ones first', async () => {
+	it('availablePresets hides configured folders and lists installed ones first', async () => {
 		const { availablePresets } = await import('../src/core/agents');
 		const home = tmp();
 		mkdirSync(join(home, '.hermes/skills'), { recursive: true });
@@ -67,7 +67,19 @@ describe('generated presets', () => {
 		const configured = [{ id: 'my-codex', label: 'x', path: '~/.codex/skills', kind: 'agent' as const, layout: 'flat' as const, archiveDir: '' }];
 		const list = availablePresets(configured, home);
 		expect(list.some((p) => p.preset.path === '~/.codex/skills')).toBe(false);
-		expect(list[0]).toMatchObject({ found: true, preset: { id: 'hermes' } });
-		expect(list[1]?.found).toBe(false);
+		expect(list[0]).toMatchObject({ installed: true, preset: { id: 'hermes' } });
+		expect(list[1]?.installed).toBe(false);
+	});
+});
+
+describe('archiveRoot', () => {
+	it('resolves relative, ~ and absolute archive folders', async () => {
+		const { archiveRoot } = await import('../src/core/agents');
+		const a = { id: 'h', label: 'H', path: '/agents/h', kind: 'agent' as const, layout: 'nested' as const, archiveDir: '' };
+		expect(archiveRoot(a)).toBeNull();
+		expect(archiveRoot({ ...a, archiveDir: '.archive' })).toBe(join('/agents/h', '.archive'));
+		expect(archiveRoot({ ...a, archiveDir: '../h-archive' })).toBe(join('/agents', 'h-archive'));
+		expect(archiveRoot({ ...a, archiveDir: '/backups/skills' }, '/home/me')).toBe('/backups/skills');
+		expect(archiveRoot({ ...a, archiveDir: '~/Archive/skills' }, '/home/me')).toBe(join('/home/me', 'Archive/skills'));
 	});
 });

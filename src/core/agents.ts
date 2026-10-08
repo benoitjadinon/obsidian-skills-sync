@@ -49,6 +49,16 @@ export function contractHome(p: string, home: string = homedir()): string {
 	return p;
 }
 
+/**
+ * Absolute archive folder of an agent, or null when it has none. archiveDir may be relative to the
+ * agent's skills folder (".archive", "../old"), start with "~", or be absolute.
+ */
+export function archiveRoot(agent: AgentConfig, home: string = homedir()): string | null {
+	if (!agent.archiveDir) return null;
+	const dir = expandHome(agent.archiveDir, home);
+	return isAbsolute(dir) ? dir : join(agent.path, dir);
+}
+
 export function detectPresets(home: string = homedir()): AgentConfig[] {
 	return PRESETS.filter((p) => existsSync(expandHome(p.path, home))).map((p) => ({ ...p }));
 }
@@ -64,10 +74,10 @@ export function validateAgentId(id: string, agents: AgentConfig[]): string | nul
 	return null;
 }
 
-/** Presets whose folder isn't configured yet, those found on this machine first, then by name. */
-export function availablePresets(configured: AgentConfig[], home: string = homedir()): { preset: AgentConfig; found: boolean }[] {
+/** Presets whose folder isn't configured yet, those installed on this machine first, then by name. */
+export function availablePresets(configured: AgentConfig[], home: string = homedir()): { preset: AgentConfig; installed: boolean }[] {
 	const taken = new Set(configured.map((a) => expandHome(a.path, home)));
 	return PRESETS.filter((p) => !taken.has(expandHome(p.path, home)))
-		.map((preset) => ({ preset, found: existsSync(expandHome(preset.path, home)) }))
-		.sort((a, b) => Number(b.found) - Number(a.found) || a.preset.label.localeCompare(b.preset.label));
+		.map((preset) => ({ preset, installed: existsSync(expandHome(preset.path, home)) }))
+		.sort((a, b) => Number(b.installed) - Number(a.installed) || a.preset.label.localeCompare(b.preset.label));
 }

@@ -45,3 +45,22 @@ describe('scenario 14: symlink migration', () => {
 		expect(report.errors.join('\n')).toMatch(/symlink/);
 	});
 });
+
+describe('stale migration list', () => {
+	it('skips a link that became a real folder meanwhile, and keeps migrating the others', async () => {
+		const { findSymlinks, migrate } = await import('../../src/core/migrate');
+		const { rmSync } = await import('fs');
+		const w = world([{ id: 'claude' }]);
+		w.put('vault', { 'a/SKILL.md': w.vaultMd(skillMd('a'), { claude: null }), 'b/SKILL.md': w.vaultMd(skillMd('b'), { claude: null }) }, T0);
+		symlinkSync(join(w.hub, 'a'), join(w.dir('claude'), 'a'));
+		symlinkSync(join(w.hub, 'b'), join(w.dir('claude'), 'b'));
+		const items = await findSymlinks(w.cfg);
+		// Something else replaces "a" by a real folder before the migration runs.
+		rmSync(join(w.dir('claude'), 'a'));
+		put(join(w.dir('claude'), 'a'), { 'SKILL.md': skillMd('a') });
+		const errors = await migrate(w.cfg, items);
+		expect(errors).toEqual([]);
+		expect(lstatSync(join(w.dir('claude'), 'b')).isSymbolicLink()).toBe(false);
+		expect(w.tree('claude')['a/SKILL.md']).toBe(skillMd('a'));
+	});
+});

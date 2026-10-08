@@ -121,7 +121,7 @@ export async function applyResolution(ex: Executor, g: SkillGroup, c: Conflict, 
 export async function runSync(cfg: SyncConfig, resolver: Resolver): Promise<SyncReport> {
 	const report: SyncReport = { applied: [], conflicts: 0, errors: [], deleted: [], trashedCopies: 0, trashFolder: '' };
 	const links = await findSymlinks(cfg);
-	if (links.length > 0 && (await resolver.confirmMigration(links))) await migrate(cfg, links);
+	if (links.length > 0 && (await resolver.confirmMigration(links))) report.errors.push(...(await migrate(cfg, links)));
 	const live = await liveConfig(cfg);
 	const ex = new Executor(cfg, resolver.trashVaultSkill?.bind(resolver));
 	const labels = labelsFor(cfg);

@@ -1,6 +1,6 @@
 import { existsSync } from 'fs';
 import { homedir } from 'os';
-import { join } from 'path';
+import { isAbsolute, join, relative, sep } from 'path';
 import { RESERVED } from './frontmatter';
 import type { AgentConfig } from './model';
 
@@ -21,6 +21,14 @@ export const PRESETS: AgentConfig[] = [
 export function expandHome(p: string, home: string = homedir()): string {
 	if (p === '~') return home;
 	if (p.startsWith('~/')) return join(home, p.slice(2));
+	return p;
+}
+
+/** Inverse of expandHome: show paths under the home folder as "~/…". */
+export function contractHome(p: string, home: string = homedir()): string {
+	if (p === home) return '~';
+	const rel = relative(home, p);
+	if (rel && !rel.startsWith('..') && !isAbsolute(rel)) return `~/${rel.split(sep).join('/')}`;
 	return p;
 }
 

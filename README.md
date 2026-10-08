@@ -17,7 +17,7 @@ Agent Skills Hub keeps your agent skills (folders with a `SKILL.md` plus optiona
 
 1. Install the plugin: copy `main.js`, `manifest.json` and `styles.css` to `<vault>/.obsidian/plugins/agent-skills-hub/`, then enable it in **Settings → Community plugins**. The plugin is desktop only.
 2. In **Settings → Agent Skills Hub**, set the **Skills folder** (default `Skills`). Each skill is a subfolder of it.
-3. Check the detected agents. On first start, every preset whose folder exists (Claude Code, Codex, Gemini CLI, OpenCode, Cursor, `~/.agents`, Hermes) is added. Add other presets, custom agents or project skills folders by path.
+3. Check the detected agents. On first start, every preset whose folder exists (Claude Code, Codex, Gemini CLI, OpenCode, Cursor, `~/.agents`, Hermes) is added. Add other presets, custom agents or project skills folders. Every folder path can be typed or pasted, or chosen with the folder button next to it (native picker, hidden folders shown); paths under your home folder are stored as `~/…`. Path edits apply when you close the settings.
 4. Run the command **Create or update the skills base**. It creates the base (default `Skills/Skills.base`) or adds the missing agent and **Source** columns to an existing one.
 5. Upgrading from a version without `agent-source`: run **Fill in missing skill sources** once. Notes without the property get the agents that currently hold a copy (not necessarily the true origin; edit it if you remember better). Notes that already have it are left alone.
 
@@ -75,4 +75,3 @@ Merge tool command examples (placeholders `{ours}`, `{base}`, `{theirs}`, `{resu
 - With a single ticked agent, a skill edited both in the vault and externally resolves by newest file date.
 - Binary-file conflicts can only be resolved by picking a version.
 - Desktop only (uses the file system directly).
-- Project folders are added by path, since Obsidian has no folder picker for paths outside the vault.

@@ -1,8 +1,10 @@
-import { App, normalizePath, Notice, PluginSettingTab, Setting } from 'obsidian';
+import { App, FileSystemAdapter, normalizePath, Notice, PluginSettingTab, Setting, type TextComponent } from 'obsidian';
 import { existsSync } from 'fs';
-import { expandHome, PRESETS, slugify, validateAgentId } from './core/agents';
+import { isAbsolute, join, relative, sep } from 'path';
+import { contractHome, expandHome, PRESETS, slugify, validateAgentId } from './core/agents';
 import type { AgentConfig } from './core/model';
 import type AgentSkillsHub from './main';
+import { canPickFolder, pickFolder } from './ui/folderPicker';
 
 export interface HubSettings {
 	hubFolder: string;
@@ -28,8 +30,58 @@ export const DEFAULT_SETTINGS: HubSettings = {
 };
 
 export class HubSettingTab extends PluginSettingTab {
+	/** Agent paths edited while the tab was open; applied (watcher restart + sync) when it closes. */
+	private pathsChanged = false;
+
 	constructor(app: App, private readonly plugin: AgentSkillsHub) {
 		super(app, plugin);
+	}
+
+	hide(): void {
+		if (this.pathsChanged) {
+			this.pathsChanged = false;
+			void this.plugin.onAgentsChanged();
+		}
+	}
+
+	/**
+	 * Adds a folder button next to a path text field: the native picker fills the field,
+	 * typing or pasting a path still works.
+	 */
+	private addBrowse(
+		setting: Setting,
+		text: () => TextComponent | undefined,
+		title: string,
+		io: { toAbs: (value: string) => string; fromAbs: (abs: string) => string | null },
+	): void {
+		setting.addExtraButton((b) => b.setIcon('folder-open').setTooltip('Choose folder').onClick(async () => {
+			const t = text();
+			if (!t) return;
+			if (!canPickFolder()) return void new Notice('The folder picker is not available; type the path instead.');
+			const current = t.getValue().trim();
+			const picked = await pickFolder(title, current ? io.toAbs(current) : undefined);
+			if (picked === null) return;
+			const value = io.fromAbs(picked);
+			if (value === null) return;
+			t.setValue(value);
+			t.onChanged();
+		}));
+	}
+
+	private vaultAbsolute(rel: string): string {
+		const adapter = this.app.vault.adapter;
+		return adapter instanceof FileSystemAdapter ? join(adapter.getBasePath(), rel) : rel;
+	}
+
+	private vaultRelative(abs: string): string | null {
+		const adapter = this.app.vault.adapter;
+		if (!(adapter instanceof FileSystemAdapter)) return null;
+		const rel = relative(adapter.getBasePath(), abs);
+		if (!rel || rel.startsWith('..') || isAbsolute(rel)) {
+			new Notice('Choose a folder inside this vault.');
+			return null;
+		}
+		return normalizePath(rel.split(sep).join('/'));
 	}
 
 	display(): void {
@@ -37,13 +89,15 @@ export class HubSettingTab extends PluginSettingTab {
 		const s = this.plugin.settings;
 		containerEl.empty();
 
-		new Setting(containerEl)
+		let hubText: TextComponent | undefined;
+		const hub = new Setting(containerEl)
 			.setName('Skills folder')
 			.setDesc('Vault folder holding one subfolder per skill.')
-			.addText((t) => t.setValue(s.hubFolder).onChange(async (v) => {
+			.addText((t) => (hubText = t).setValue(s.hubFolder).onChange(async (v) => {
 				s.hubFolder = normalizePath(v);
 				await this.plugin.saveSettings();
 			}));
+		this.addBrowse(hub, () => hubText, 'Skills folder', { toAbs: (v) => this.vaultAbsolute(v), fromAbs: (abs) => this.vaultRelative(abs) });
 		new Setting(containerEl)
 			.setName('Property prefix')
 			.setDesc('Prefix of the per-agent checkbox properties. Changing it later orphans existing properties.')
@@ -120,9 +174,17 @@ export class HubSettingTab extends PluginSettingTab {
 
 	private renderAgent(el: HTMLElement, a: AgentConfig): void {
 		const s = this.plugin.settings;
-		new Setting(el)
+		let pathText: TextComponent | undefined;
+		const row = new Setting(el)
 			.setName(a.label)
-			.setDesc(`${a.path} · property ${s.propPrefix}${a.id}`)
+			.setDesc(`Property ${s.propPrefix}${a.id}`)
+			.addText((t) => (pathText = t).setPlaceholder('Folder path').setValue(a.path).onChange(async (v) => {
+				a.path = v.trim();
+				this.pathsChanged = true;
+				await this.plugin.saveSettings();
+			}));
+		this.addBrowse(row, () => pathText, `Skills folder for ${a.label}`, { toAbs: (v) => expandHome(v), fromAbs: (abs) => contractHome(abs) });
+		row
 			.addDropdown((d) => d
 				.addOption('flat', 'Flat folder')
 				.addOption('nested', 'Category subfolders')
@@ -144,12 +206,14 @@ export class HubSettingTab extends PluginSettingTab {
 	private renderAddForm(el: HTMLElement, kind: 'agent' | 'project'): void {
 		let label = '';
 		let path = '';
-		new Setting(el)
+		let pathText: TextComponent | undefined;
+		const row = new Setting(el)
 			.setName(kind === 'agent' ? 'Add custom agent' : 'Add project')
 			.setDesc(kind === 'agent' ? 'Any folder an agent reads skills from.' : 'A project skills folder, for example ~/Workspaces/foo/.claude/skills.')
 			.addText((t) => t.setPlaceholder('Name').onChange((v) => (label = v)))
-			.addText((t) => t.setPlaceholder('Folder path').onChange((v) => (path = v)))
-			.addButton((b) => b.setButtonText('Add').onClick(async () => {
+			.addText((t) => (pathText = t).setPlaceholder('Folder path').onChange((v) => (path = v)));
+		this.addBrowse(row, () => pathText, kind === 'agent' ? 'Agent skills folder' : 'Project skills folder', { toAbs: (v) => expandHome(v), fromAbs: (abs) => contractHome(abs) });
+		row.addButton((b) => b.setButtonText('Add').onClick(async () => {
 				const s = this.plugin.settings;
 				const id = slugify(label);
 				const err = validateAgentId(id, s.agents);

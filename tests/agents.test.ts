@@ -27,3 +27,13 @@ describe('agents helpers', () => {
 		expect(found[1]).toMatchObject({ layout: 'nested', archiveDir: '.archive' });
 	});
 });
+
+describe('contractHome', () => {
+	it('shortens paths under home to ~ and leaves others alone', async () => {
+		const { contractHome } = await import('../src/core/agents');
+		expect(contractHome(join('/h', '.claude/skills'), '/h')).toBe('~/.claude/skills');
+		expect(contractHome('/h', '/h')).toBe('~');
+		expect(contractHome('/hx/y', '/h')).toBe('/hx/y');
+		expect(contractHome('/opt/skills', '/h')).toBe('/opt/skills');
+	});
+});

@@ -20,7 +20,7 @@ describe('merge tool errors', () => {
 
 describe('merge tool presets', () => {
 	it('are all valid commands', () => {
-		expect(MERGE_TOOL_PRESETS.length).toBeGreaterThanOrEqual(4);
+		expect(MERGE_TOOL_PRESETS.map((p) => p.id)).toEqual(['vscode', 'filemerge', 'kaleidoscope', 'meld', 'intellij', 'webstorm']);
 		for (const p of MERGE_TOOL_PRESETS) expect(validateMergeCommand(p.command)).toBeNull();
 	});
 });

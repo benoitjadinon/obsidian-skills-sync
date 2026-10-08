@@ -68,6 +68,8 @@ The merge tool is optional (default: none). Pick a preset in **Settings → Merg
 | FileMerge | `opendiff {ours} {theirs} -ancestor {base} -merge {result}` |
 | Kaleidoscope | `ksdiff --merge --output {result} --base {base} {ours} {theirs}` |
 | Meld | `meld {ours} {base} {theirs} --output {result}` |
+| IntelliJ IDEA | `idea merge {ours} {theirs} {base} {result}` (needs the command-line launcher: Toolbox → Settings → Shell scripts, or Tools → Create Command-line Launcher) |
+| WebStorm | `webstorm merge {ours} {theirs} {base} {result}` (same launcher requirement) |
 
 ## Known limitations
 

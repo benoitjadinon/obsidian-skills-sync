@@ -134,7 +134,8 @@ export class ConflictModal extends Modal {
 
 	private renderActions(): void {
 		const c = this.req.conflict;
-		const row = new Setting(this.contentEl);
+		// Kept visible at the bottom of the dialog, however long the diff is (see styles.css).
+		const row = new Setting(this.contentEl).setClass('ash-conflict-actions');
 		const add = (text: string, fn: () => void | Promise<void>, cta = false): void => {
 			row.addButton((b) => {
 				b.setButtonText(text).onClick(() => void fn());

@@ -141,3 +141,14 @@ input.ash-invalid {
 	opacity: 0.18;
 	filter: grayscale(1);
 }
+/* Conflict dialog: the action buttons stay visible while the versions and diff scroll. */
+.ash-conflict .ash-conflict-actions {
+	position: sticky;
+	bottom: calc(-1 * var(--size-4-4));
+	z-index: 1;
+	margin-top: var(--size-4-2);
+	padding-block: var(--size-4-3);
+	background-color: var(--modal-background, var(--background-primary));
+	border-top: 1px solid var(--background-modifier-border);
+	box-shadow: 0 -6px 12px -8px rgba(0, 0, 0, 0.35);
+}

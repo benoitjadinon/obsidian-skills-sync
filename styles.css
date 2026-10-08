@@ -82,21 +82,6 @@ input.ash-invalid {
 	flex-basis: 100%;
 	margin-inline-end: 0;
 }
-.setting-item.ash-stacked .setting-item-control {
-	flex-basis: 100%;
-	justify-content: flex-start;
-	margin-top: var(--size-4-2);
-}
-.setting-item.ash-stacked .setting-item-control input[type='text'] {
-	width: 100%;
-}
-.setting-item.ash-stacked .setting-item-control {
-	flex-wrap: wrap;
-	gap: var(--size-4-2);
-}
-.setting-item.ash-stacked .setting-item-control input[type='text'] {
-	flex: 1 1 100%;
-}
 .ash-tag {
 	margin-inline-start: var(--size-4-2);
 	padding: 0 var(--size-4-1);
@@ -110,4 +95,19 @@ input.ash-invalid {
 .ash-tag-custom {
 	color: var(--text-accent);
 	border-color: var(--text-accent);
+}
+.setting-item.ash-stacked .setting-item-control {
+	flex-basis: 100%;
+	flex-wrap: nowrap;
+	justify-content: flex-start;
+	gap: var(--size-4-2);
+	margin-top: var(--size-4-2);
+}
+.setting-item.ash-stacked .setting-item-control select {
+	flex: 0 0 auto;
+}
+.setting-item.ash-stacked .setting-item-control input[type='text'] {
+	flex: 1 1 auto;
+	min-width: 0;
+	width: auto;
 }

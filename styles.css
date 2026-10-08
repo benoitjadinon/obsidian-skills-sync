@@ -51,3 +51,12 @@
 	font-family: var(--font-monospace);
 	font-size: var(--font-smallest);
 }
+.ash-agent-modal {
+	width: min(760px, 95vw);
+}
+.ash-agent-modal .setting-item-description {
+	max-width: 46ch;
+}
+.ash-wide-input {
+	width: min(340px, 50vw);
+}

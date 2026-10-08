@@ -1,3 +1,6 @@
+import { Notice, type Setting, type TextComponent } from 'obsidian';
+
+
 interface OpenDialogResult {
 	canceled: boolean;
 	filePaths: string[];
@@ -31,4 +34,28 @@ export async function pickFolder(title: string, defaultPath?: string): Promise<s
 		properties: ['openDirectory', 'createDirectory', 'showHiddenFiles'],
 	});
 	return r.canceled ? null : (r.filePaths[0] ?? null);
+}
+
+/**
+ * Adds a folder button next to a path text field: the native picker fills the field,
+ * typing or pasting a path still works.
+ */
+export function addFolderBrowse(
+	setting: Setting,
+	text: () => TextComponent | undefined,
+	title: string,
+	io: { toAbs: (value: string) => string; fromAbs: (abs: string) => string | null },
+): void {
+	setting.addExtraButton((b) => b.setIcon('folder-open').setTooltip('Choose folder').onClick(async () => {
+		const t = text();
+		if (!t) return;
+		if (!canPickFolder()) return void new Notice('The folder picker is not available; type the path instead.');
+		const current = t.getValue().trim();
+		const picked = await pickFolder(title, current ? io.toAbs(current) : undefined);
+		if (picked === null) return;
+		const value = io.fromAbs(picked);
+		if (value === null) return;
+		t.setValue(value);
+		t.onChanged();
+	}));
 }

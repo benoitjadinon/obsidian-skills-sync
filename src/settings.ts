@@ -1,10 +1,12 @@
 import { App, FileSystemAdapter, normalizePath, Notice, PluginSettingTab, Setting, type TextComponent } from 'obsidian';
 import { existsSync } from 'fs';
 import { isAbsolute, join, relative, sep } from 'path';
-import { contractHome, expandHome, PRESETS, slugify, validateAgentId } from './core/agents';
+import { expandHome } from './core/agents';
 import type { AgentConfig } from './core/model';
 import type AgentSkillsHub from './main';
-import { canPickFolder, pickFolder } from './ui/folderPicker';
+import { AgentModal } from './ui/AgentModal';
+import { addFolderBrowse } from './ui/folderPicker';
+import { ConfirmModal } from './ui/simpleModals';
 
 export interface HubSettings {
 	hubFolder: string;
@@ -30,42 +32,8 @@ export const DEFAULT_SETTINGS: HubSettings = {
 };
 
 export class HubSettingTab extends PluginSettingTab {
-	/** Agent paths edited while the tab was open; applied (watcher restart + sync) when it closes. */
-	private pathsChanged = false;
-
 	constructor(app: App, private readonly plugin: AgentSkillsHub) {
 		super(app, plugin);
-	}
-
-	hide(): void {
-		if (this.pathsChanged) {
-			this.pathsChanged = false;
-			void this.plugin.onAgentsChanged();
-		}
-	}
-
-	/**
-	 * Adds a folder button next to a path text field: the native picker fills the field,
-	 * typing or pasting a path still works.
-	 */
-	private addBrowse(
-		setting: Setting,
-		text: () => TextComponent | undefined,
-		title: string,
-		io: { toAbs: (value: string) => string; fromAbs: (abs: string) => string | null },
-	): void {
-		setting.addExtraButton((b) => b.setIcon('folder-open').setTooltip('Choose folder').onClick(async () => {
-			const t = text();
-			if (!t) return;
-			if (!canPickFolder()) return void new Notice('The folder picker is not available; type the path instead.');
-			const current = t.getValue().trim();
-			const picked = await pickFolder(title, current ? io.toAbs(current) : undefined);
-			if (picked === null) return;
-			const value = io.fromAbs(picked);
-			if (value === null) return;
-			t.setValue(value);
-			t.onChanged();
-		}));
 	}
 
 	private vaultAbsolute(rel: string): string {
@@ -97,7 +65,7 @@ export class HubSettingTab extends PluginSettingTab {
 				s.hubFolder = normalizePath(v);
 				await this.plugin.saveSettings();
 			}));
-		this.addBrowse(hub, () => hubText, 'Skills folder', { toAbs: (v) => this.vaultAbsolute(v), fromAbs: (abs) => this.vaultRelative(abs) });
+		addFolderBrowse(hub, () => hubText, 'Skills folder', { toAbs: (v) => this.vaultAbsolute(v), fromAbs: (abs) => this.vaultRelative(abs) });
 		new Setting(containerEl)
 			.setName('Property prefix')
 			.setDesc('Prefix of the per-agent checkbox properties. Changing it later orphans existing properties.')
@@ -140,87 +108,60 @@ export class HubSettingTab extends PluginSettingTab {
 				await this.plugin.saveSettings();
 			}));
 
-		new Setting(containerEl).setName('Agents').setHeading();
-		for (const a of s.agents.filter((x) => x.kind === 'agent')) this.renderAgent(containerEl, a);
-		const available = PRESETS.filter((p) => !s.agents.some((a) => a.id === p.id));
-		if (available.length > 0) {
-			let chosen = available[0]?.id ?? '';
-			new Setting(containerEl)
-				.setName('Add a preset')
-				.addDropdown((d) => {
-					for (const p of available) d.addOption(p.id, `${p.label} (${p.path})`);
-					d.setValue(chosen).onChange((v) => (chosen = v));
-				})
-				.addButton((b) => b.setButtonText('Add').onClick(async () => {
-					const p = PRESETS.find((x) => x.id === chosen);
-					if (!p) return;
-					if (!existsSync(expandHome(p.path))) new Notice(`${p.path} does not exist yet; it will be used once created.`);
-					s.agents.push({ ...p });
+		this.renderList(containerEl, 'agent');
+		this.renderList(containerEl, 'project');
+	}
+
+	private renderList(el: HTMLElement, kind: AgentConfig['kind']): void {
+		const s = this.plugin.settings;
+		new Setting(el).setName(kind === 'agent' ? 'Agents' : 'Projects').setHeading();
+		const items = s.agents.filter((a) => a.kind === kind);
+		if (items.length === 0) {
+			el.createEl('p', { cls: 'setting-item-description', text: kind === 'agent' ? 'No agents yet.' : 'No project skills folders yet.' });
+		}
+		for (const a of items) {
+			const layout = a.layout === 'nested' ? 'category subfolders' : 'flat';
+			const archive = a.archiveDir ? ` · archive ${a.archiveDir}` : '';
+			const missing = existsSync(expandHome(a.path)) ? '' : ' · folder not found';
+			new Setting(el)
+				.setName(a.label)
+				.setDesc(`${a.path} · ${layout}${archive} · ${s.propPrefix}${a.id}${missing}`)
+				.addExtraButton((b) => b.setIcon('pencil').setTooltip('Edit').onClick(() => this.openForm(kind, a)))
+				.addExtraButton((b) => b.setIcon('trash').setTooltip('Remove').onClick(async () => {
+					const ok = await new ConfirmModal(
+						this.app,
+						`Remove ${a.label}?`,
+						`Agent Skills Hub stops syncing ${a.path}. Its skill files and the ${s.propPrefix}${a.id} properties in your notes are kept.`,
+						'Remove',
+					).openAndWait();
+					if (!ok) return;
+					s.agents = s.agents.filter((x) => x !== a);
 					await this.changed();
 				}));
 		}
-		this.renderAddForm(containerEl, 'agent');
+		new Setting(el).addButton((b) => b
+			.setButtonText(kind === 'agent' ? 'Add agent…' : 'Add project…')
+			.onClick(() => this.openForm(kind)));
+	}
 
-		new Setting(containerEl).setName('Projects').setHeading();
-		for (const a of s.agents.filter((x) => x.kind === 'project')) this.renderAgent(containerEl, a);
-		this.renderAddForm(containerEl, 'project');
+	private openForm(kind: AgentConfig['kind'], agent?: AgentConfig): void {
+		const s = this.plugin.settings;
+		new AgentModal(this.app, {
+			agent,
+			kind,
+			existing: s.agents,
+			prefix: s.propPrefix,
+			onSave: async (saved) => {
+				if (agent) Object.assign(agent, saved);
+				else s.agents.push(saved);
+				await this.changed();
+			},
+		}).open();
 	}
 
 	private async changed(): Promise<void> {
 		await this.plugin.saveSettings();
 		await this.plugin.onAgentsChanged();
 		this.display();
-	}
-
-	private renderAgent(el: HTMLElement, a: AgentConfig): void {
-		const s = this.plugin.settings;
-		let pathText: TextComponent | undefined;
-		const row = new Setting(el)
-			.setName(a.label)
-			.setDesc(`Property ${s.propPrefix}${a.id}`)
-			.addText((t) => (pathText = t).setPlaceholder('Folder path').setValue(a.path).onChange(async (v) => {
-				a.path = v.trim();
-				this.pathsChanged = true;
-				await this.plugin.saveSettings();
-			}));
-		this.addBrowse(row, () => pathText, `Skills folder for ${a.label}`, { toAbs: (v) => expandHome(v), fromAbs: (abs) => contractHome(abs) });
-		row
-			.addDropdown((d) => d
-				.addOption('flat', 'Flat folder')
-				.addOption('nested', 'Category subfolders')
-				.setValue(a.layout)
-				.onChange(async (v) => {
-					a.layout = v === 'nested' ? 'nested' : 'flat';
-					await this.plugin.saveSettings();
-				}))
-			.addText((t) => t.setPlaceholder('Archive folder').setValue(a.archiveDir).onChange(async (v) => {
-				a.archiveDir = v.trim();
-				await this.plugin.saveSettings();
-			}))
-			.addExtraButton((b) => b.setIcon('trash').setTooltip('Remove').onClick(async () => {
-				s.agents = s.agents.filter((x) => x !== a);
-				await this.changed();
-			}));
-	}
-
-	private renderAddForm(el: HTMLElement, kind: 'agent' | 'project'): void {
-		let label = '';
-		let path = '';
-		let pathText: TextComponent | undefined;
-		const row = new Setting(el)
-			.setName(kind === 'agent' ? 'Add custom agent' : 'Add project')
-			.setDesc(kind === 'agent' ? 'Any folder an agent reads skills from.' : 'A project skills folder, for example ~/Workspaces/foo/.claude/skills.')
-			.addText((t) => t.setPlaceholder('Name').onChange((v) => (label = v)))
-			.addText((t) => (pathText = t).setPlaceholder('Folder path').onChange((v) => (path = v)));
-		this.addBrowse(row, () => pathText, kind === 'agent' ? 'Agent skills folder' : 'Project skills folder', { toAbs: (v) => expandHome(v), fromAbs: (abs) => contractHome(abs) });
-		row.addButton((b) => b.setButtonText('Add').onClick(async () => {
-				const s = this.plugin.settings;
-				const id = slugify(label);
-				const err = validateAgentId(id, s.agents);
-				if (err) return void new Notice(err);
-				if (!existsSync(expandHome(path))) return void new Notice('That folder does not exist.');
-				s.agents.push({ id, label: label.trim(), path: path.trim(), kind, layout: 'flat', archiveDir: '' });
-				await this.changed();
-			}));
 	}
 }

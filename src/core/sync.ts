@@ -235,3 +235,28 @@ export async function rewriteStates(
 	}
 	return changed;
 }
+
+/**
+ * "Tick the skills it already has" for an agent added earlier: clear its undecided (empty) property
+ * on skills it holds, so the next sync adopts them like for a newly added agent. Explicit choices
+ * (true/false) are kept. Returns the skills whose property was cleared.
+ */
+export async function resetUndecided(cfg: SyncConfig, agentId: string): Promise<string[]> {
+	const live = await liveConfig(cfg);
+	const owners = new Set(live.agents.filter((a) => (a.stateKey ?? a.id) === agentId).map((a) => a.id));
+	const cleared: string[] = [];
+	for (const g of await loadGroups(cfg)) {
+		const v = g.vault;
+		if (!v || v.meta.states[agentId] !== null || !(agentId in v.meta.states)) continue;
+		if (!g.copies.some((c) => owners.has(c.owner) && !c.archived)) continue;
+		const key = `${cfg.prefix}${agentId}`;
+		const raw = v.rawSkillMd
+			.split(/(?<=\n)/)
+			.filter((line) => !new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:\\s*(null|~)?\\s*$`).test(line.replace(/\r?\n$/, '')))
+			.join('');
+		if (raw === v.rawSkillMd) continue;
+		await fsp.writeFile(join(v.copy.dir, 'SKILL.md'), raw);
+		cleared.push(v.name);
+	}
+	return cleared;
+}

@@ -116,3 +116,26 @@ describe('archive folder outside the agent folder', () => {
 		expect(tree(external)['foo/SKILL.md']).toBe(skillMd('foo'));
 	});
 });
+
+describe('tick the skills an existing agent already has', () => {
+	it('clears undecided states where the agent holds the skill, so the next sync adopts them', async () => {
+		const { resetUndecided } = await import('../../src/core/sync');
+		const w = hermesWorld();
+		w.put('vault', {
+			'a/SKILL.md': w.vaultMd(skillMd('a'), { claude: true, hermes: null }),
+			'b/SKILL.md': w.vaultMd(skillMd('b'), { claude: true, hermes: null }),
+			'c/SKILL.md': w.vaultMd(skillMd('c'), { claude: true, hermes: false }),
+		}, T0);
+		w.put('claude', { 'a/SKILL.md': skillMd('a'), 'b/SKILL.md': skillMd('b'), 'c/SKILL.md': skillMd('c') }, T0);
+		w.put('hermes', { 'productivity/a/SKILL.md': skillMd('a'), 'c/SKILL.md': skillMd('c') }, T0);
+		expect(await resetUndecided(w.cfg, 'hermes')).toEqual(['a']);
+		const r = new StubResolver((req) => (req.conflict.kind === 'path' ? { kind: 'adoptPath' } : { kind: 'skip' }));
+		await runSync(w.cfg, r);
+		await runSync(w.cfg, r);
+		const meta = (n: string) => readMeta(w.tree('vault')[`${n}/SKILL.md`] ?? '', 'agent-');
+		expect(meta('a').states.hermes).toBe(true);
+		expect(meta('a').path).toBe('productivity');
+		expect(meta('b').states.hermes).toBeNull();
+		expect(meta('c').states.hermes).toBe(false); // an explicit choice is kept
+	});
+});

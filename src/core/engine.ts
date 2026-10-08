@@ -22,6 +22,7 @@ export type Action =
 	| { type: 'archive'; group: SkillGroup; copy: SkillCopy }
 	| { type: 'unarchive'; group: SkillGroup; copy: SkillCopy }
 	| { type: 'setStates'; group: SkillGroup; states: Record<string, AgentState> }
+	| { type: 'setPath'; group: SkillGroup; path: string }
 	| { type: 'conflict'; group: SkillGroup; conflict: Conflict };
 
 const newestFirst = (cs: SkillCopy[]): SkillCopy[] => [...cs].sort((a, b) => b.mtimeMs - a.mtimeMs);
@@ -92,9 +93,24 @@ export function planGroup(g: SkillGroup, cfg: SyncConfig): Action[] {
 	if (v.hasConflictFile) return [];
 	const actions: Action[] = [];
 
+	// A newly added agent (no property yet) adopts what it already holds: a copy ticks it (asking when
+	// the copy differs from the vault), an archived copy unticks it, nothing leaves it undecided.
 	const missing = stateKeys(cfg.agents).filter((k) => !(k in v.meta.states));
 	if (missing.length > 0) {
-		actions.push({ type: 'setStates', group: g, states: Object.fromEntries(missing.map((k) => [k, null])) });
+		const states: Record<string, AgentState> = {};
+		const differing: SkillCopy[] = [];
+		for (const k of missing) {
+			const owners = new Set(cfg.agents.filter((a) => (a.stateKey ?? a.id) === k).map((a) => a.id));
+			const held = copies.filter((c) => owners.has(c.owner));
+			const active = held.filter((c) => !c.archived);
+			states[k] = active.length > 0 ? true : held.length > 0 ? false : null;
+			differing.push(...active.filter((c) => c.key !== v.copy.key));
+		}
+		actions.push({ type: 'setStates', group: g, states });
+		const variants = distinct(differing);
+		if (variants.length > 0) {
+			actions.push({ type: 'conflict', group: g, conflict: { kind: 'external', ours: v.copy, theirs: variants, owners: ownersOf([v.copy, ...differing]) } });
+		}
 	}
 
 	const consensus: SkillCopy[] = [];
@@ -115,7 +131,9 @@ export function planGroup(g: SkillGroup, cfg: SyncConfig): Action[] {
 		} else if (state === true && active) {
 			consensus.push(active);
 			if (a.layout === 'nested' && active.relPath !== v.meta.path) {
-				actions.push({ type: 'conflict', group: g, conflict: { kind: 'path', theirs: [active], owners: {}, agent: a.id } });
+				// No category recorded yet: take the agent's. A different recorded one: ask.
+				if (!v.meta.path) actions.push({ type: 'setPath', group: g, path: active.relPath });
+				else actions.push({ type: 'conflict', group: g, conflict: { kind: 'path', theirs: [active], owners: {}, agent: a.id } });
 			}
 		}
 	}

@@ -165,6 +165,8 @@ export class Executor {
 				return this.unarchive(g, action.copy);
 			case 'setStates':
 				return this.patchMeta(g, { states: action.states });
+			case 'setPath':
+				return this.patchMeta(g, { path: action.path });
 			case 'conflict':
 				return;
 		}

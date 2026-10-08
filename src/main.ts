@@ -9,7 +9,7 @@ import { hasMarkers } from './core/merge';
 import type { SyncConfig } from './core/model';
 import { isConflictFile } from './core/scan';
 import { projectColumns, switchStates, syncTargets } from './core/projects';
-import { createSkill, deleteEverywhere, removeAgentFromNotes, rewriteStates, fillMissingSources, findAgentCopies, removeFromAgents, runSync } from './core/sync';
+import { createSkill, deleteEverywhere, removeAgentFromNotes, resetUndecided, rewriteStates, fillMissingSources, findAgentCopies, removeFromAgents, runSync } from './core/sync';
 import { Watcher } from './core/watcher';
 import { DEFAULT_SETTINGS, type HubSettings, HubSettingTab } from './settings';
 import { ObsidianResolver } from './ui/resolver';
@@ -429,6 +429,17 @@ export default class AgentSkillsHub extends Plugin {
 		}
 		this.registerPropertyTypes();
 		if (open && file instanceof TFile) await this.app.workspace.getLeaf(false).openFile(file);
+	}
+
+	/**
+	 * Tick the skills an agent already has (for agents added before that was automatic): its undecided
+	 * skills that it holds are adopted by the next sync; differing copies are asked about.
+	 */
+	async adoptExisting(agentId: string, label: string): Promise<void> {
+		const cleared = await this.exclusive(() => resetUndecided(this.config(), agentId));
+		if (cleared === undefined) return void new Notice('A sync is already running, or waiting for your answer in a dialog.');
+		new Notice(cleared.length > 0 ? `${label}: checking ${cleared.length} skill${cleared.length === 1 ? '' : 's'} it already has.` : `${label} has no undecided skills it already holds.`);
+		if (cleared.length > 0) await this.sync();
 	}
 
 	/** After an agent or project was removed from settings: delete its properties from every skill note and its base columns. */

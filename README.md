@@ -78,6 +78,7 @@ For each skill, the plugin compares the vault version with the copy of every age
 
 | Situation | What happens |
 |---|---|
+| You add an agent that already has skills | Skills it already has are ticked (you're asked when its copy differs from the vault); archived ones are unticked; the rest stay undecided. For agents added earlier, use the **Tick the skills it already has** button on the agent's row. |
 | A skill exists in an agent but not in the vault | It's imported: ticked for the agents that have it, empty for the others. If they hold different versions, you choose. |
 | An agent is ticked but has no copy | The skill is copied to it. |
 | An agent is unticked but still has a copy | The copy is removed (or archived) if it matches the vault; otherwise you're asked first. |

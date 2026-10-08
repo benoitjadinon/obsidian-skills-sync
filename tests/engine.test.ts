@@ -123,3 +123,33 @@ describe('vault skill', () => {
 		expect(planGroup(g({ claude: true }, 'k', 0, [c('claude', 'k'), c('ghost', 'zzz', 99)]), cfg([ag('claude')]))).toEqual([]);
 	});
 });
+
+describe('adopting a newly added agent', () => {
+	it('ticks skills it already has, asks when its copy differs, unticks archive-only, leaves the rest undecided', () => {
+		const agents = [ag('claude'), ag('trader', { layout: 'nested', archiveDir: '.archive' })];
+		const same = planGroup(g({ claude: true }, 'k', 0, [c('claude', 'k'), c('trader', 'k')]), cfg(agents));
+		expect(same).toEqual([expect.objectContaining({ type: 'setStates', states: { trader: true } })]);
+
+		const differs = planGroup(g({ claude: true }, 'k', 0, [c('claude', 'k'), c('trader', 'other', 5)]), cfg(agents));
+		expect(differs[0]).toMatchObject({ type: 'setStates', states: { trader: true } });
+		expect(differs[1]).toMatchObject({ type: 'conflict', conflict: { kind: 'external' } });
+
+		const archived = planGroup(g({ claude: true }, 'k', 0, [c('claude', 'k'), c('trader', 'k', 0, { archived: true })]), cfg(agents));
+		expect(archived).toEqual([expect.objectContaining({ type: 'setStates', states: { trader: false } })]);
+
+		const none = planGroup(g({ claude: true }, 'k', 0, [c('claude', 'k')]), cfg(agents));
+		expect(none).toEqual([expect.objectContaining({ type: 'setStates', states: { trader: null } })]);
+	});
+	it('never adopts when the property exists (even empty): the user decided', () => {
+		const agents = [ag('claude'), ag('trader')];
+		expect(planGroup(g({ claude: true, trader: null }, 'k', 0, [c('claude', 'k'), c('trader', 'k')]), cfg(agents))).toEqual([]);
+	});
+});
+
+describe('category folders', () => {
+	it('records the agent category without asking when the note has none yet', () => {
+		const agents = [ag('hermes', { layout: 'nested' })];
+		const as = planGroup(g({ hermes: true }, 'k', 0, [c('hermes', 'k', 0, { relPath: 'productivity' })]), cfg(agents));
+		expect(as).toEqual([expect.objectContaining({ type: 'setPath', path: 'productivity' })]);
+	});
+});

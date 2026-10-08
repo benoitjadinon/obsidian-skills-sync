@@ -88,15 +88,6 @@ export class AgentModal extends Modal {
 		});
 		this.updateIdDesc(idSetting);
 
-		new Setting(el)
-			.setName('Type')
-			.setDesc('Projects are skills folders inside a repository; they are listed separately.')
-			.addDropdown((dd) => dd
-				.addOption('agent', 'Agent')
-				.addOption('project', 'Project')
-				.setValue(d.kind)
-				.onChange((v) => (d.kind = v === 'project' ? 'project' : 'agent')));
-
 		let pathText: TextComponent | undefined;
 		const pathSetting = new Setting(el)
 			.setName('Skills folder')

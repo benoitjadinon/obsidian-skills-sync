@@ -1,7 +1,9 @@
 import { FileSystemAdapter, normalizePath, Notice, Plugin, TAbstractFile, TFile, TFolder } from 'obsidian';
 import { join, relative, sep } from 'path';
 import { detectPresets, expandHome, inferPreset, presetsFor } from './core/agents';
-import { type BaseOptions, defaultBase, ensureAgentColumns, removeAgentColumn } from './core/base';
+import { type BaseOptions, defaultBase, deviceBasePath, ensureAgentColumns, removeAgentColumn } from './core/base';
+import { devicesUsingColumn, mergeView, migrateSettings, type StoredSettings, toView } from './core/deviceSettings';
+import { hostname } from 'os';
 import { resolveConflictFiles } from './core/conflictFiles';
 import { hasMarkers } from './core/merge';
 import type { SyncConfig } from './core/model';
@@ -13,12 +15,23 @@ import { DEFAULT_SETTINGS, type HubSettings, HubSettingTab } from './settings';
 import { ObsidianResolver } from './ui/resolver';
 import { ConfirmModal, NewSkillModal } from './ui/simpleModals';
 
+const DEVICE_KEY = 'skills-sync-device';
+
+/** Short host name, e.g. "mac-server" for mac-server.local. */
+function defaultDeviceName(): string {
+	return hostname().split('.')[0] || 'this computer';
+}
+
 interface MetadataTypeManager {
 	setType?(name: string, type: string): void;
 }
 
 export default class AgentSkillsHub extends Plugin {
 	settings: HubSettings = { ...DEFAULT_SETTINGS };
+	private stored: StoredSettings = migrateSettings(null, '', '');
+	private deviceId = '';
+	private migratedFromV1 = false;
+	private settingTab: HubSettingTab | null = null;
 	private watcher: Watcher | null = null;
 	private busy = false;
 	private again = false;
@@ -60,7 +73,8 @@ export default class AgentSkillsHub extends Plugin {
 			mergeCommand: () => this.settings.mergeCommand,
 			openPath: (p) => this.openAbsolute(p),
 		});
-		this.addSettingTab(new HubSettingTab(this.app, this));
+		this.settingTab = new HubSettingTab(this.app, this);
+		this.addSettingTab(this.settingTab);
 		this.addRibbonIcon('refresh-cw', 'Sync agent skills', () => void this.sync());
 
 		this.addCommand({ id: 'sync-now', name: 'Sync now', callback: () => void this.sync() });
@@ -101,15 +115,65 @@ export default class AgentSkillsHub extends Plugin {
 		if (this.vaultTimer !== null) window.clearTimeout(this.vaultTimer);
 	}
 
+	/** This computer's identity, kept in Obsidian's per-device storage (never synced with the vault). */
+	private device(): { id: string; name: string } {
+		const saved = this.app.loadLocalStorage(DEVICE_KEY) as { id?: string; name?: string } | null;
+		if (saved?.id) return { id: saved.id, name: saved.name || defaultDeviceName() };
+		const device = { id: crypto.randomUUID(), name: defaultDeviceName() };
+		this.app.saveLocalStorage(DEVICE_KEY, device);
+		return device;
+	}
+
 	async loadSettings(): Promise<void> {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, (await this.loadData()) as Partial<HubSettings> | null);
+		const raw: unknown = await this.loadData();
+		const { id, name } = this.device();
+		this.deviceId = id;
+		this.migratedFromV1 = Boolean(raw) && (raw as { version?: number }).version !== 2;
+		this.stored = migrateSettings(raw, id, name);
+		this.settings = toView(this.stored, id, name);
 	}
 
 	async saveSettings(): Promise<void> {
-		await this.saveData(this.settings);
+		this.app.saveLocalStorage(DEVICE_KEY, { id: this.deviceId, name: this.settings.deviceName });
+		// Merge with what is on disk now: another computer's profile may have arrived (git pull, Sync).
+		this.stored = mergeView(await this.loadData(), this.deviceId, this.settings);
+		await this.saveData(this.stored);
+	}
+
+	/** data.json changed on disk (e.g. the other computer's settings arrived): reload. */
+	async onExternalSettingsChange(): Promise<void> {
+		await this.loadSettings();
+		this.registerPropertyTypes();
+		this.restartWatcher();
+		this.settingTab?.refreshIfOpen();
+	}
+
+	/** Names of the other computers whose settings still use this column. */
+	usedElsewhere(columnId: string): string[] {
+		return devicesUsingColumn(this.stored, this.deviceId, columnId);
+	}
+
+	/** This computer's base file. */
+	basePath(): string {
+		return normalizePath(deviceBasePath(this.settings.basePath, this.settings.deviceName));
+	}
+
+	/** Rename this computer's base file (after its name or the base pattern changed). */
+	async renameBase(fromPath: string): Promise<void> {
+		const from = this.app.vault.getAbstractFileByPath(normalizePath(fromPath));
+		const to = this.basePath();
+		if (from instanceof TFile && from.path !== to && !this.app.vault.getAbstractFileByPath(to)) {
+			await this.app.fileManager.renameFile(from, to);
+		}
 	}
 
 	private async startup(): Promise<void> {
+		// Upgrading from one shared base: it becomes this computer's base.
+		if (this.migratedFromV1) {
+			await this.saveSettings();
+			await this.renameBase(normalizePath(this.settings.basePath));
+			this.migratedFromV1 = false;
+		}
 		this.registerPropertyTypes();
 		if (!this.settings.autoSync) return;
 		await this.sync();
@@ -285,7 +349,7 @@ export default class AgentSkillsHub extends Plugin {
 	async ensureBase(open = false): Promise<void> {
 		const s = this.settings;
 		const opts = { hubFolder: normalizePath(s.hubFolder), prefix: s.propPrefix, agents: this.columns() };
-		const path = normalizePath(s.basePath);
+		const path = this.basePath();
 		let file = this.app.vault.getAbstractFileByPath(path);
 		if (file instanceof TFile) {
 			await this.app.vault.process(file, (t) => ensureAgentColumns(t, opts));
@@ -318,7 +382,7 @@ export default class AgentSkillsHub extends Plugin {
 	}
 
 	private async processBase(fn: (text: string, remaining: BaseOptions) => string): Promise<void> {
-		const base = this.app.vault.getAbstractFileByPath(normalizePath(this.settings.basePath));
+		const base = this.app.vault.getAbstractFileByPath(this.basePath());
 		if (!(base instanceof TFile)) return;
 		const s = this.settings;
 		const remaining: BaseOptions = { hubFolder: normalizePath(s.hubFolder), prefix: s.propPrefix, agents: this.columns() };
@@ -326,7 +390,7 @@ export default class AgentSkillsHub extends Plugin {
 	}
 
 	async onAgentsChanged(): Promise<void> {
-		if (this.app.vault.getAbstractFileByPath(normalizePath(this.settings.basePath))) await this.ensureBase();
+		if (this.app.vault.getAbstractFileByPath(this.basePath())) await this.ensureBase();
 		this.registerPropertyTypes();
 		this.restartWatcher();
 		await this.sync();

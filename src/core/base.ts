@@ -112,3 +112,9 @@ export function removeAgentColumn(text: string, remaining: BaseOptions, agentId:
 	}
 	return doc.toString();
 }
+
+/** This computer's base file: the shared pattern with the computer's name before .base. */
+export function deviceBasePath(pattern: string, deviceName: string): string {
+	const stem = pattern.endsWith('.base') ? pattern.slice(0, -'.base'.length) : pattern;
+	return `${stem} (${deviceName}).base`;
+}

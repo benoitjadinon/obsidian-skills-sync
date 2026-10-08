@@ -184,3 +184,20 @@ describe('review focus: missing agent folder', () => {
 		expect(existsSync(join(w.root, 'agents', 'gone-missing'))).toBe(false);
 	});
 });
+
+describe('vault shared between computers', () => {
+	it('leaves columns of agents configured only on another computer untouched', async () => {
+		const w = world([{ id: 'claude' }]);
+		const raw = w.vaultMd(skillMd('x'), { claude: true }).replace('agent-claude: true', 'agent-claude: true\nagent-hermes: true');
+		w.put('vault', { 'x/SKILL.md': raw }, T0);
+		w.put('claude', { 'x/SKILL.md': skillMd('x') }, T0);
+		await runSync(w.cfg, new StubResolver());
+		const after = w.tree('vault')['x/SKILL.md'] ?? '';
+		expect(readMeta(after, 'agent-').states).toEqual({ claude: true, hermes: true });
+		// A vault edit (body) is pushed here, and still keeps the other computer's column.
+		w.put('vault', { 'x/SKILL.md': after.replace('Do things.', 'Do more.') }, T2);
+		await runSync(w.cfg, new StubResolver());
+		expect(readMeta(w.tree('vault')['x/SKILL.md'] ?? '', 'agent-').states).toEqual({ claude: true, hermes: true });
+		expect(w.tree('claude')['x/SKILL.md']).toContain('Do more.');
+	});
+});

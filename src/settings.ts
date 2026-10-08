@@ -10,46 +10,36 @@ import { projectColumns, projectFolders } from './core/projects';
 import { showFieldError } from './ui/fieldErrors';
 import { addFolderBrowse } from './ui/folderPicker';
 import { MERGE_TOOL_PRESETS } from './core/externalMerge';
-import { validateBasePath, validateHubFolder, validateMergeCommand, validatePrefix } from './core/validate';
+import { validateBasePath, validateDeviceName, validateHubFolder, validateMergeCommand, validatePrefix } from './core/validate';
 import { RemoveAgentModal } from './ui/simpleModals';
 
-export interface HubSettings {
-	hubFolder: string;
-	propPrefix: string;
-	basePath: string;
-	/** Paths may start with "~". */
-	agents: AgentConfig[];
-	/** Code projects: their agents' project skills folders, synced from one column or one per folder. */
-	projects: ProjectConfig[];
-	autoPullExternal: 'ask' | 'auto';
-	autoSync: boolean;
-	mergeCommand: string;
-	initialized: boolean;
-}
-
-export const DEFAULT_SETTINGS: HubSettings = {
-	hubFolder: 'Skills',
-	propPrefix: 'agent-',
-	basePath: 'Skills/Skills.base',
-	agents: [],
-	projects: [],
-	autoPullExternal: 'ask',
-	autoSync: true,
-	mergeCommand: '',
-	initialized: false,
-};
+export { DEFAULT_SETTINGS, type HubSettings } from './core/deviceSettings';
 
 export class HubSettingTab extends PluginSettingTab {
+	private baseSetting?: Setting;
 	constructor(app: App, private readonly plugin: AgentSkillsHub) {
 		super(app, plugin);
 	}
 
 	/** Show the field's error; apply and save the value only when it is valid. */
-	private async saveIfValid(setting: Setting, input: TextComponent, error: string | null, apply: () => void): Promise<void> {
+	private async saveIfValid(setting: Setting, input: TextComponent, error: string | null, apply: () => void | Promise<void>): Promise<void> {
 		showFieldError(setting, input, error);
 		if (error) return;
-		apply();
+		await apply();
 		await this.plugin.saveSettings();
+	}
+
+	private baseDesc(): string {
+		return `Vault path ending in .base; each computer gets its own file. This computer's base: ${this.plugin.basePath()}. Created if missing; an existing base gets the missing columns.`;
+	}
+
+	private refreshBaseDesc(): void {
+		this.baseSetting?.setDesc(this.baseDesc());
+	}
+
+	/** Re-render when the settings changed on disk (another computer's profile arrived). */
+	refreshIfOpen(): void {
+		if (this.containerEl.isShown()) this.display();
 	}
 
 	private vaultAbsolute(rel: string): string {
@@ -74,6 +64,17 @@ export class HubSettingTab extends PluginSettingTab {
 		containerEl.empty();
 		containerEl.addClass('ash-settings');
 
+		const machine = new Setting(containerEl)
+			.setName('This computer')
+			.setDesc('Agents, projects and the merge tool are set per computer, so one vault can be shared between computers. This name labels this computer\'s base file.');
+		machine.addText((t) => t.setValue(s.deviceName).onChange((v) => this.saveIfValid(machine, t, validateDeviceName(v), async () => {
+			const before = this.plugin.basePath();
+			s.deviceName = v.trim();
+			await this.plugin.saveSettings();
+			await this.plugin.renameBase(before);
+			this.refreshBaseDesc();
+		})));
+
 		let hubText: TextComponent | undefined;
 		const hub = new Setting(containerEl)
 			.setName('Skills folder')
@@ -90,9 +91,14 @@ export class HubSettingTab extends PluginSettingTab {
 		})));
 		const base = new Setting(containerEl)
 			.setName('Base file')
-			.setDesc('Vault path ending in .base. Created if missing; an existing base gets the missing agent columns.');
-		base.addText((t) => t.setValue(s.basePath).onChange((v) => this.saveIfValid(base, t, validateBasePath(v), () => {
+			.setDesc(this.baseDesc());
+		this.baseSetting = base;
+		base.addText((t) => t.setValue(s.basePath).onChange((v) => this.saveIfValid(base, t, validateBasePath(v), async () => {
+			const before = this.plugin.basePath();
 			s.basePath = normalizePath(v.trim());
+			await this.plugin.saveSettings();
+			await this.plugin.renameBase(before);
+			base.setDesc(this.baseDesc());
 		})))
 			.addButton((b) => b.setButtonText('Create or update').onClick(() => void this.plugin.ensureBase(true)));
 		new Setting(containerEl)
@@ -167,7 +173,7 @@ export class HubSettingTab extends PluginSettingTab {
 				.addExtraButton((b) => b.setIcon('pencil').setTooltip('Edit').onClick(() => this.openProjectForm(p)))
 				.addExtraButton((b) => b.setIcon('trash').setTooltip('Remove').onClick(async () => {
 					const property = p.perAgentColumns ? `${s.propPrefix}${p.id}-… properties` : `${s.propPrefix}${p.id} property`;
-					const r = await new RemoveAgentModal(this.app, p.label, p.root, property).openAndWait();
+					const r = await new RemoveAgentModal(this.app, p.label, p.root, property, [...new Set(columns.flatMap((c) => this.plugin.usedElsewhere(c.id)))]).openAndWait();
 					if (!r.confirmed) return;
 					s.projects = s.projects.filter((x) => x !== p);
 					await this.plugin.saveSettings();
@@ -227,7 +233,7 @@ export class HubSettingTab extends PluginSettingTab {
 				.setDesc(`${a.path}${layout}${archive} · ${s.propPrefix}${a.id}${missing}`)
 				.addExtraButton((b) => b.setIcon('pencil').setTooltip('Edit').onClick(() => this.openForm(kind, a)))
 				.addExtraButton((b) => b.setIcon('trash').setTooltip('Remove').onClick(async () => {
-					const r = await new RemoveAgentModal(this.app, a.label, a.path, `${s.propPrefix}${a.id} property`).openAndWait();
+					const r = await new RemoveAgentModal(this.app, a.label, a.path, `${s.propPrefix}${a.id} property`, this.plugin.usedElsewhere(a.id)).openAndWait();
 					if (!r.confirmed) return;
 					s.agents = s.agents.filter((x) => x !== a);
 					await this.plugin.saveSettings();

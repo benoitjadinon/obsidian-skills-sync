@@ -49,6 +49,15 @@
   - on new forms, show errors only for fields the user has touched.
 - Normalize as the user types where possible, for example `normalizeIdInput` for agent IDs.
 
+### Settings per computer
+
+- `data.json` (v2, see `core/deviceSettings.ts`) holds the shared settings plus `devices[<id>]` profiles (agents, projects, merge tool, initialized).
+- The computer id and name live in Obsidian's per-device storage (`app.loadLocalStorage('skills-sync-device')`), which is never synced.
+- `toView` gives the flat `HubSettings` the code uses. `saveSettings` re-reads the file and merges (`mergeView`), so another computer's profile that arrived through sync is kept.
+- `onExternalSettingsChange` reloads the settings.
+- The base path is a pattern; `deviceBasePath` adds the computer name.
+- Never read `settings.basePath` as a file path; use `plugin.basePath()`.
+
 ### Projects
 
 - A `ProjectConfig` (`settings.projects`) holds a root folder and `perAgentColumns`. `syncTargets()` (`core/projects.ts`) expands it into one sync target per distinct agent `projectDir`.

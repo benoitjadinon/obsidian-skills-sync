@@ -113,7 +113,30 @@ export class ConflictModal extends Modal {
 		const c = this.req.conflict;
 		const left = c.ours ?? c.theirs[1];
 		const right = c.theirs[0];
-		const panes = el.createDiv({ cls: 'ash-panes' });
+		const leftName = c.ours ? 'Vault' : this.holders(left ?? right ?? c.theirs[0]!);
+		const rightName = right ? this.holders(right) : 'Agent';
+
+		// 1. The differences first, full height: only the dialog scrolls (its buttons stay pinned).
+		if (left && right) {
+			const head = el.createDiv({ cls: 'ash-diff-head' });
+			head.createEl('h4', { text: `Changes · ${this.file}` });
+			const legend = head.createDiv({ cls: 'ash-diff-legend' });
+			legend.createSpan({ cls: 'ash-del', text: `− ${leftName}` });
+			legend.createSpan({ cls: 'ash-add', text: `+ ${rightName}` });
+			const pre = el.createEl('pre', { cls: 'ash-unified' });
+			for (const part of diffLines(textOf(left, this.file), textOf(right, this.file))) {
+				if (part.added || part.removed) {
+					pre.createSpan({ cls: part.added ? 'ash-add' : 'ash-del', text: part.value });
+				} else {
+					this.renderUnchanged(pre, part.value);
+				}
+			}
+		}
+
+		// 2. The full versions side by side, collapsed: opened only when needed.
+		const details = el.createEl('details', { cls: 'ash-full-versions' });
+		details.createEl('summary', { text: 'Show full versions side by side' });
+		const panes = details.createDiv({ cls: 'ash-panes' });
 		const columns: Array<[string, SkillCopy | undefined]> = [
 			[c.ours ? 'Vault' : 'Version 2', left], ['Base', c.base], [c.ours ? 'Agent' : 'Version 1', right],
 		];
@@ -123,13 +146,27 @@ export class ConflictModal extends Modal {
 			pane.createEl('h4', { text: `${title} · ${this.file}` });
 			pane.createEl('pre', { text: textOf(v, this.file) });
 		}
-		if (left && right) {
-			el.createEl('h4', { text: 'Differences' });
-			const pre = el.createEl('pre', { cls: 'ash-unified' });
-			for (const part of diffLines(textOf(left, this.file), textOf(right, this.file))) {
-				pre.createSpan({ cls: part.added ? 'ash-add' : part.removed ? 'ash-del' : 'ash-same', text: part.value });
-			}
+	}
+
+	/** Unchanged text in the diff: long runs are folded to a few lines of context, expandable on click. */
+	private renderUnchanged(pre: HTMLElement, value: string): void {
+		const lines = value.split('\n');
+		const trailing = value.endsWith('\n') ? lines.pop() : undefined;
+		const context = 3;
+		// Fold only when it hides a real block (at least 6 lines).
+		if (lines.length < context * 2 + 6) {
+			pre.createSpan({ cls: 'ash-same', text: value });
+			return;
 		}
+		const head = lines.slice(0, context).join('\n') + '\n';
+		const middle = lines.slice(context, lines.length - context).join('\n') + '\n';
+		const tail = lines.slice(lines.length - context).join('\n') + (trailing !== undefined ? '\n' : '');
+		pre.createSpan({ cls: 'ash-same', text: head });
+		const fold = pre.createSpan({ cls: 'ash-fold', text: `⋯ ${lines.length - context * 2} unchanged lines (click to show)\n` });
+		fold.addEventListener('click', () => {
+			fold.replaceWith(createSpan({ cls: 'ash-same', text: middle }));
+		});
+		pre.createSpan({ cls: 'ash-same', text: tail });
 	}
 
 	private renderActions(): void {

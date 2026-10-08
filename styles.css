@@ -27,12 +27,45 @@
 	flex: 1 1 0;
 	min-width: 0;
 }
-.ash-pane pre,
-.ash-unified {
+.ash-pane pre {
 	max-height: 320px;
 	overflow: auto;
 	font-size: var(--font-smallest);
 	white-space: pre-wrap;
+}
+/* The diff takes its full height: only the dialog scrolls. */
+.ash-unified {
+	font-size: var(--font-smallest);
+	white-space: pre-wrap;
+	margin-top: 0;
+}
+.ash-diff-head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--size-4-2);
+}
+.ash-diff-legend {
+	display: flex;
+	gap: var(--size-4-2);
+	font-size: var(--font-smallest);
+}
+.ash-fold {
+	display: block;
+	color: var(--text-muted);
+	font-style: italic;
+	cursor: pointer;
+	background-color: var(--background-secondary);
+}
+.ash-fold:hover {
+	color: var(--text-normal);
+}
+.ash-full-versions {
+	margin-top: var(--size-4-3);
+}
+.ash-full-versions summary {
+	cursor: pointer;
+	color: var(--text-muted);
 }
 .ash-add {
 	background: rgba(var(--color-green-rgb), 0.2);

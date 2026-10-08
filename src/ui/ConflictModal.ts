@@ -1,6 +1,7 @@
 import { App, Modal, Notice, Setting } from 'obsidian';
 import { diffLines } from 'diff';
 import { writeConflictFiles } from '../core/conflictFiles';
+import { guardLostWindow } from './lostWindow';
 import { describeMergeError, resolveWithExternalTool } from '../core/externalMerge';
 import { conflictLabels, mergeSkill } from '../core/merge';
 import type { SkillCopy, SyncConfig } from '../core/model';
@@ -31,6 +32,7 @@ function textOf(copy: SkillCopy | undefined, rel: string): string {
 export class ConflictModal extends Modal {
 	private result: Resolution = { kind: 'skip' };
 	private done: (r: Resolution) => void = () => undefined;
+	private stopGuard: () => void = () => undefined;
 	private file = 'SKILL.md';
 
 	constructor(app: App, private readonly req: ConflictRequest, private readonly deps: ConflictUiDeps) {
@@ -39,8 +41,16 @@ export class ConflictModal extends Modal {
 
 	openAndWait(): Promise<Resolution> {
 		return new Promise((resolve) => {
-			this.done = resolve;
+			let settled = false;
+			this.done = (r) => {
+				if (settled) return;
+				settled = true;
+				this.stopGuard();
+				resolve(r);
+			};
 			this.open();
+			// If the dialog's window disappears, the sync gets "skip" instead of waiting forever.
+			this.stopGuard = guardLostWindow(this, () => this.done({ kind: 'skip' }));
 		});
 	}
 

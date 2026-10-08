@@ -1,11 +1,13 @@
 import { App, type ButtonComponent, Modal, Setting } from 'obsidian';
 import { validateSkillName } from '../core/validate';
+import { guardLostWindow } from './lostWindow';
 import { showFieldError } from './fieldErrors';
 import type { MigrationItem } from '../core/sync';
 
 export class ConfirmModal extends Modal {
 	private answer = false;
 	private done: (ok: boolean) => void = () => undefined;
+	private stopGuard: () => void = () => undefined;
 
 	constructor(app: App, private readonly heading: string, private readonly message: string, private readonly confirmText: string) {
 		super(app);
@@ -13,8 +15,16 @@ export class ConfirmModal extends Modal {
 
 	openAndWait(): Promise<boolean> {
 		return new Promise((resolve) => {
-			this.done = resolve;
+			let settled = false;
+			this.done = (ok) => {
+				if (settled) return;
+				settled = true;
+				this.stopGuard();
+				resolve(ok);
+			};
 			this.open();
+			// If the dialog's window disappears, answer "no" instead of leaving the caller waiting.
+			this.stopGuard = guardLostWindow(this, () => this.done(false));
 		});
 	}
 

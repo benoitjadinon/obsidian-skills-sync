@@ -86,9 +86,9 @@ export default class AgentSkillsHub extends Plugin {
 		});
 		this.settingTab = new HubSettingTab(this.app, this);
 		this.addSettingTab(this.settingTab);
-		this.addRibbonIcon('refresh-cw', 'Sync agent skills', () => void this.sync());
+		this.addRibbonIcon('refresh-cw', 'Sync agent skills', () => void this.syncNow());
 
-		this.addCommand({ id: 'sync-now', name: 'Sync now', callback: () => void this.sync() });
+		this.addCommand({ id: 'sync-now', name: 'Sync now', callback: () => void this.syncNow() });
 		this.addCommand({
 			id: 'new-skill', name: 'New skill',
 			callback: () => new NewSkillModal(this.app, this.skillNames(), (n, d) => void this.newSkill(n, d)).open(),
@@ -300,6 +300,15 @@ export default class AgentSkillsHub extends Plugin {
 				window.setTimeout(() => void this.sync(), 1600);
 			}
 		}
+	}
+
+	/** Sync started by the user: say so when one is already running (it may be waiting in a dialog). */
+	private async syncNow(): Promise<void> {
+		if (this.busy) {
+			new Notice('A sync is already running, or waiting for your answer in a dialog.');
+			return;
+		}
+		await this.sync();
 	}
 
 	async sync(): Promise<void> {

@@ -56,6 +56,7 @@ export class HubSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		const s = this.plugin.settings;
 		containerEl.empty();
+		containerEl.addClass('ash-settings');
 
 		let hubText: TextComponent | undefined;
 		const hub = new Setting(containerEl)

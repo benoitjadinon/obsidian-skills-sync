@@ -60,3 +60,9 @@
 .ash-wide-input {
 	width: min(340px, 50vw);
 }
+/* Themes that draw each setting as a card (background + radius) often leave no horizontal padding. */
+.ash-settings .setting-item:not(.setting-item-heading),
+.ash-agent-modal .setting-item,
+.ash-conflict .setting-item {
+	padding-inline: var(--size-4-4);
+}

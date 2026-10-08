@@ -90,3 +90,10 @@ input.ash-invalid {
 .setting-item.ash-stacked .setting-item-control input[type='text'] {
 	width: 100%;
 }
+.setting-item.ash-stacked .setting-item-control {
+	flex-wrap: wrap;
+	gap: var(--size-4-2);
+}
+.setting-item.ash-stacked .setting-item-control input[type='text'] {
+	flex: 1 1 100%;
+}

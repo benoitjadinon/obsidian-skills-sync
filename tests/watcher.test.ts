@@ -10,7 +10,8 @@ describe('Watcher', () => {
 	it('debounces changes into one callback and ignores them while paused', async () => {
 		const dir = tmp();
 		let calls = 0;
-		const w = new Watcher([dir, join(dir, 'missing')], () => calls++, 300);
+		const timers = { setTimeout: (fn: () => void, ms: number) => setTimeout(fn, ms) as unknown as number, clearTimeout: (id: number) => clearTimeout(id) };
+		const w = new Watcher([dir, join(dir, 'missing')], () => calls++, timers, 300);
 		w.start();
 		writeFileSync(join(dir, 'a'), '1');
 		writeFileSync(join(dir, 'b'), '2');

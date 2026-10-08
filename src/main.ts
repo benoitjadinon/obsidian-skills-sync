@@ -97,7 +97,10 @@ export default class AgentSkillsHub extends Plugin {
 		this.watcher?.stop();
 		this.watcher = null;
 		if (!this.settings.autoSync) return;
-		this.watcher = new Watcher(this.config().agents.map((a) => a.path), () => void this.sync());
+		this.watcher = new Watcher(this.config().agents.map((a) => a.path), () => void this.sync(), {
+			setTimeout: (fn, ms) => window.setTimeout(fn, ms),
+			clearTimeout: (id) => window.clearTimeout(id),
+		});
 		this.watcher.start();
 	}
 

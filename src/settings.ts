@@ -112,9 +112,11 @@ export class HubSettingTab extends PluginSettingTab {
 		const presetFor = (cmd: string): string => (cmd.trim() ? (MERGE_TOOL_PRESETS.find((p) => p.command === cmd.trim())?.id ?? 'custom') : '');
 		let mergeText: TextComponent | undefined;
 		let mergeDropdown: DropdownComponent | undefined;
-		new Setting(containerEl)
+		// One block: description on top, then the app presets and the full-width command.
+		const merge = new Setting(containerEl)
+			.setClass('ash-stacked')
 			.setName('Merge tool')
-			.setDesc('Optional. Lets the conflict dialog open the merge in another app; without one, conflicts are resolved in Obsidian. IntelliJ IDEA and WebStorm need their command-line launcher enabled.')
+			.setDesc('Optional. Lets the conflict dialog open the merge in another app; without one, conflicts are resolved in Obsidian. Pick an app to fill in its command, or type your own with the placeholders {ours} {base} {theirs} {result}. IntelliJ IDEA and WebStorm need their command-line launcher enabled; use an absolute path if a tool is not found.')
 			.addDropdown((d) => {
 				mergeDropdown = d;
 				d.addOption('', 'None');
@@ -126,10 +128,6 @@ export class HubSettingTab extends PluginSettingTab {
 					mergeText?.onChanged();
 				});
 			});
-		const merge = new Setting(containerEl)
-			.setClass('ash-stacked')
-			.setName('Merge command')
-			.setDesc('Filled in by the merge tool choice, or type your own. Placeholders: {ours} {base} {theirs} {result}. Use an absolute path if the tool is not found.');
 		merge.addText((t) => {
 			mergeText = t;
 			t.setPlaceholder('tool {ours} {theirs} {base} {result}').setValue(s.mergeCommand).onChange((v) => {
@@ -138,7 +136,6 @@ export class HubSettingTab extends PluginSettingTab {
 					s.mergeCommand = v.trim();
 				});
 			});
-			t.inputEl.addClass('ash-wide-input');
 		});
 
 		this.renderList(containerEl, 'agent');

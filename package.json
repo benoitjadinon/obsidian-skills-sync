@@ -1,7 +1,7 @@
 {
 	"name": "agent-skills-hub",
-	"version": "0.1.0",
-	"description": "Agent skills hub and sync for Obsidian",
+	"version": "1.0.0",
+	"description": "Keep your AI agent skills in one vault folder, choose which agents get each skill from a Base, and sync real copies to Claude Code, Codex, Hermes and other agents.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
@@ -12,8 +12,15 @@
 		"test": "vitest run",
 		"presets:update": "node scripts/update-presets.mjs"
 	},
-	"keywords": [],
-	"license": "0-BSD",
+	"keywords": [
+		"obsidian",
+		"obsidian-plugin",
+		"agent-skills",
+		"claude-code",
+		"codex",
+		"skills"
+	],
+	"license": "MIT",
 	"devDependencies": {
 		"@eslint/js": "^9.39.4",
 		"@types/node": "^22.15.17",
@@ -31,5 +38,10 @@
 		"diff": "^9.0.0",
 		"node-diff3": "^3.2.1",
 		"yaml": "^2.9.1"
+	},
+	"author": "Benoit Jadinon",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/benoitjadinon/obsidian-skills-sync.git"
 	}
 }

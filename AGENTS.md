@@ -35,6 +35,16 @@
 - `agent-source` is written only on import (and by the **Fill in missing skill sources** backfill when absent); sync must preserve it as is.
 - Every delete or move goes through `assertInside` (agent root) and never writes through a symlinked skill folder.
 
+### Validating user input
+
+- Every rule lives in `src/core/validate.ts` (pure, unit-tested in `tests/validate.test.ts`). Validators return a short message or `null`.
+- In the UI:
+  - show errors with `showFieldError` (`ui/fieldErrors.ts`);
+  - never save an invalid settings value (`saveIfValid` in `settings.ts`);
+  - keep Save/Add/Create buttons disabled until the form is valid;
+  - on new forms, show errors only for fields the user has touched.
+- Normalize as the user types where possible, for example `normalizeIdInput` for agent IDs.
+
 ### Updating the agent presets
 
 - `npm run presets:update [-- <tag>]` (`scripts/update-presets.mjs`) downloads `src/agents.ts` from vercel-labs/skills at a pinned tag (default in the script, currently `v1.7.1`). It evaluates the table in a child process with a fake `HOME` and an empty environment, then rewrites `src/core/agentPresets.generated.json`.

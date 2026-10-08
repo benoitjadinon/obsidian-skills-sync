@@ -5,7 +5,9 @@ import { expandHome } from './core/agents';
 import type { AgentConfig } from './core/model';
 import type AgentSkillsHub from './main';
 import { AgentModal } from './ui/AgentModal';
+import { showFieldError } from './ui/fieldErrors';
 import { addFolderBrowse } from './ui/folderPicker';
+import { validateBasePath, validateHubFolder, validateMergeCommand, validatePrefix } from './core/validate';
 import { ConfirmModal } from './ui/simpleModals';
 
 export interface HubSettings {
@@ -36,6 +38,14 @@ export class HubSettingTab extends PluginSettingTab {
 		super(app, plugin);
 	}
 
+	/** Show the field's error; apply and save the value only when it is valid. */
+	private async saveIfValid(setting: Setting, input: TextComponent, error: string | null, apply: () => void): Promise<void> {
+		showFieldError(setting, input, error);
+		if (error) return;
+		apply();
+		await this.plugin.saveSettings();
+	}
+
 	private vaultAbsolute(rel: string): string {
 		const adapter = this.app.vault.adapter;
 		return adapter instanceof FileSystemAdapter ? join(adapter.getBasePath(), rel) : rel;
@@ -62,25 +72,22 @@ export class HubSettingTab extends PluginSettingTab {
 		const hub = new Setting(containerEl)
 			.setName('Skills folder')
 			.setDesc('Vault folder holding one subfolder per skill.')
-			.addText((t) => (hubText = t).setValue(s.hubFolder).onChange(async (v) => {
-				s.hubFolder = normalizePath(v);
-				await this.plugin.saveSettings();
-			}));
+			.addText((t) => (hubText = t).setValue(s.hubFolder).onChange((v) => this.saveIfValid(hub, t, validateHubFolder(v), () => {
+				s.hubFolder = normalizePath(v.trim());
+			})));
 		addFolderBrowse(hub, () => hubText, 'Skills folder', { toAbs: (v) => this.vaultAbsolute(v), fromAbs: (abs) => this.vaultRelative(abs) });
-		new Setting(containerEl)
+		const prefix = new Setting(containerEl)
 			.setName('Property prefix')
-			.setDesc('Prefix of the per-agent checkbox properties. Changing it later orphans existing properties.')
-			.addText((t) => t.setValue(s.propPrefix).onChange(async (v) => {
-				s.propPrefix = v;
-				await this.plugin.saveSettings();
-			}));
-		new Setting(containerEl)
+			.setDesc('Prefix of the per-agent checkbox properties, for example agent-. Changing it later orphans existing properties.');
+		prefix.addText((t) => t.setValue(s.propPrefix).onChange((v) => this.saveIfValid(prefix, t, validatePrefix(v), () => {
+			s.propPrefix = v;
+		})));
+		const base = new Setting(containerEl)
 			.setName('Base file')
-			.setDesc('Created if missing; an existing base gets the missing agent columns.')
-			.addText((t) => t.setValue(s.basePath).onChange(async (v) => {
-				s.basePath = normalizePath(v);
-				await this.plugin.saveSettings();
-			}))
+			.setDesc('Vault path ending in .base. Created if missing; an existing base gets the missing agent columns.');
+		base.addText((t) => t.setValue(s.basePath).onChange((v) => this.saveIfValid(base, t, validateBasePath(v), () => {
+			s.basePath = normalizePath(v.trim());
+		})))
 			.addButton((b) => b.setButtonText('Create or update').onClick(() => void this.plugin.ensureBase(true)));
 		new Setting(containerEl)
 			.setName('Sync automatically')
@@ -101,13 +108,12 @@ export class HubSettingTab extends PluginSettingTab {
 					s.autoPullExternal = v === 'auto' ? 'auto' : 'ask';
 					await this.plugin.saveSettings();
 				}));
-		new Setting(containerEl)
+		const merge = new Setting(containerEl)
 			.setName('Merge tool command')
-			.setDesc('Placeholders: {ours} {base} {theirs} {result}. Use an absolute path if the tool is not found.')
-			.addText((t) => t.setValue(s.mergeCommand).onChange(async (v) => {
-				s.mergeCommand = v;
-				await this.plugin.saveSettings();
-			}));
+			.setDesc('Placeholders: {ours} {base} {theirs} {result}. Use an absolute path if the tool is not found.');
+		merge.addText((t) => t.setValue(s.mergeCommand).onChange((v) => this.saveIfValid(merge, t, validateMergeCommand(v), () => {
+			s.mergeCommand = v.trim();
+		})));
 
 		this.renderList(containerEl, 'agent');
 		this.renderList(containerEl, 'project');
@@ -152,6 +158,7 @@ export class HubSettingTab extends PluginSettingTab {
 			kind,
 			existing: s.agents,
 			prefix: s.propPrefix,
+			hubDir: this.plugin.config().hubDir,
 			onSave: async (saved) => {
 				if (agent) Object.assign(agent, saved);
 				else s.agents.push(saved);

@@ -1,4 +1,6 @@
-import { App, Modal, Setting } from 'obsidian';
+import { App, type ButtonComponent, Modal, Setting } from 'obsidian';
+import { validateSkillName } from '../core/validate';
+import { showFieldError } from './fieldErrors';
 import type { MigrationItem } from '../core/sync';
 
 export class ConfirmModal extends Modal {
@@ -55,19 +57,35 @@ export class NewSkillModal extends Modal {
 	private name = '';
 	private description = '';
 
-	constructor(app: App, private readonly onSubmit: (name: string, description: string) => void) {
+	constructor(
+		app: App,
+		/** Names of existing skill folders, to refuse duplicates. */
+		private readonly existing: string[],
+		private readonly onSubmit: (name: string, description: string) => void,
+	) {
 		super(app);
 	}
 
 	onOpen(): void {
 		this.setTitle('New skill');
-		new Setting(this.contentEl).setName('Name').setDesc('Folder name, for example my-skill.').addText((t) => t.onChange((v) => (this.name = v.trim())));
-		new Setting(this.contentEl).setName('Description').setDesc('When an agent should use this skill.').addTextArea((t) => t.onChange((v) => (this.description = v.trim())));
-		new Setting(this.contentEl).addButton((b) => b.setButtonText('Create').setCta().onClick(() => {
-			if (!this.name) return;
-			this.close();
-			this.onSubmit(this.name, this.description);
+		let create: ButtonComponent | undefined;
+		const name = new Setting(this.contentEl).setName('Name').setDesc('Folder name, for example my-skill.');
+		const check = (): string | null => validateSkillName(this.name, this.existing);
+		name.addText((t) => t.onChange((v) => {
+			this.name = v.trim();
+			const error = check();
+			showFieldError(name, t, this.name ? error : null);
+			create?.setDisabled(error !== null);
 		}));
+		new Setting(this.contentEl).setName('Description').setDesc('When an agent should use this skill.').addTextArea((t) => t.onChange((v) => (this.description = v.trim())));
+		new Setting(this.contentEl).addButton((b) => {
+			create = b;
+			b.setButtonText('Create').setCta().setDisabled(true).onClick(() => {
+				if (check() !== null) return;
+				this.close();
+				this.onSubmit(this.name, this.description);
+			});
+		});
 	}
 
 	onClose(): void {

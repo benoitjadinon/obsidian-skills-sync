@@ -1,19 +1,28 @@
-import { App, Modal, Notice, Setting, type TextComponent } from 'obsidian';
+import { App, type ButtonComponent, Modal, Setting, type TextComponent } from 'obsidian';
 import { existsSync } from 'fs';
 import { isAbsolute, relative, sep } from 'path';
 import { archiveRoot, availablePresets, contractHome, expandHome, PRESETS, PRESETS_SOURCE, slugify, validateAgentId } from '../core/agents';
 import type { AgentConfig } from '../core/model';
+import { normalizeIdInput, validateAgentFolder, validateArchiveFolder } from '../core/validate';
+import { showFieldError } from './fieldErrors';
 import { addFolderBrowse } from './folderPicker';
 
 export interface AgentModalOptions {
 	/** Agent being edited; omit to create a new one. */
 	agent?: AgentConfig;
-	/** Kind preselected for a new entry. */
+	/** Kind of a new entry (set by the list it is added from). */
 	kind: AgentConfig['kind'];
-	/** All configured agents (for id validation and preset filtering). */
+	/** All configured agents (for validation and preset filtering). */
 	existing: AgentConfig[];
 	prefix: string;
+	/** Absolute vault skills folder (an agent folder can't overlap it). */
+	hubDir: string;
 	onSave: (agent: AgentConfig) => Promise<void>;
+}
+
+interface Field {
+	setting: Setting;
+	input?: TextComponent;
 }
 
 /** Full-size form to create or edit an agent or project. Works on a draft; nothing changes until Save. */
@@ -21,13 +30,23 @@ export class AgentModal extends Modal {
 	private draft: AgentConfig;
 	private readonly creating: boolean;
 	private idTouched = false;
+	private fields: Record<'name' | 'id' | 'path' | 'archive', Field | undefined> = { name: undefined, id: undefined, path: undefined, archive: undefined };
+	private saveButton?: ButtonComponent;
+	/** Fields the user has edited; errors show only for those (all of them when editing an existing agent). */
+	private touched = new Set<keyof AgentModal['fields']>();
 
 	constructor(app: App, private readonly opts: AgentModalOptions) {
 		super(app);
 		this.creating = !opts.agent;
-		this.draft = opts.agent
-			? { ...opts.agent }
-			: { id: '', label: '', path: '', kind: opts.kind, layout: 'flat', archiveDir: '' };
+		this.draft = opts.agent ? { ...opts.agent } : this.blank();
+	}
+
+	private blank(): AgentConfig {
+		return { id: '', label: '', path: '', kind: this.opts.kind, layout: 'flat', archiveDir: '' };
+	}
+
+	private get others(): AgentConfig[] {
+		return this.opts.existing.filter((a) => a !== this.opts.agent);
 	}
 
 	onOpen(): void {
@@ -57,7 +76,7 @@ export class AgentModal extends Modal {
 						for (const { preset, installed } of presets) dd.addOption(preset.id, `${preset.label}${installed ? ' (installed)' : ''} — ${preset.path}`);
 						dd.setValue(PRESETS.some((p) => p.id === d.id) ? d.id : '').onChange((v) => {
 							const p = PRESETS.find((x) => x.id === v);
-							this.draft = p ? { ...p } : { id: '', label: '', path: '', kind: d.kind, layout: 'flat', archiveDir: '' };
+							this.draft = p ? { ...p } : this.blank();
 							this.idTouched = Boolean(p);
 							this.render();
 						});
@@ -65,45 +84,50 @@ export class AgentModal extends Modal {
 			}
 		}
 
-		let idText: TextComponent | undefined;
-		new Setting(el)
-			.setName('Name')
-			.setDesc('Shown as the column title in the base.')
-			.addText((t) => t.setValue(d.label).onChange((v) => {
+		const name: Field = { setting: new Setting(el).setName('Name').setDesc('Shown as the column title in the base.') };
+		name.setting.addText((t) => {
+			name.input = t;
+			t.setValue(d.label).onChange((v) => {
 				d.label = v;
+				this.touched.add('name');
 				if (this.creating && !this.idTouched) {
 					d.id = slugify(v);
-					idText?.setValue(d.id);
-					this.updateIdDesc(idSetting);
+					this.fields.id?.input?.setValue(d.id);
 				}
-			}));
-
-		const idSetting = new Setting(el).setName('ID').addText((t) => {
-			idText = t;
-			t.setValue(d.id).setDisabled(!this.creating).onChange((v) => {
-				this.idTouched = true;
-				d.id = v.trim();
-				this.updateIdDesc(idSetting);
+				this.validate();
 			});
 		});
-		this.updateIdDesc(idSetting);
+		this.fields.name = name;
 
-		let pathText: TextComponent | undefined;
-		const pathSetting = new Setting(el)
-			.setName('Skills folder')
-			.addText((t) => {
-				pathText = t;
-				t.setPlaceholder('~/.agent/skills').setValue(d.path).onChange((v) => {
-					d.path = v.trim();
-					this.updatePathDesc(pathSetting);
-				});
-				t.inputEl.addClass('ash-wide-input');
+		const id: Field = { setting: new Setting(el).setName('ID') };
+		id.setting.addText((t) => {
+			id.input = t;
+			t.setValue(d.id).setDisabled(!this.creating).onChange((v) => {
+				this.idTouched = true;
+				this.touched.add('id');
+				const clean = normalizeIdInput(v, false);
+				if (clean !== v) t.setValue(clean);
+				d.id = clean;
+				this.validate();
 			});
-		addFolderBrowse(pathSetting, () => pathText, `Skills folder for ${d.label || noun}`, {
+		});
+		this.fields.id = id;
+
+		const path: Field = { setting: new Setting(el).setName('Skills folder') };
+		path.setting.addText((t) => {
+			path.input = t;
+			t.setPlaceholder('~/.agent/skills').setValue(d.path).onChange((v) => {
+				d.path = v.trim();
+				this.touched.add('path');
+				this.validate();
+			});
+			t.inputEl.addClass('ash-wide-input');
+		});
+		addFolderBrowse(path.setting, () => path.input, `Skills folder for ${d.label || noun}`, {
 			toAbs: (v) => expandHome(v),
 			fromAbs: (abs) => contractHome(abs),
 		});
-		this.updatePathDesc(pathSetting);
+		this.fields.path = path;
 
 		new Setting(el)
 			.setName('Layout')
@@ -114,16 +138,21 @@ export class AgentModal extends Modal {
 				.setValue(d.layout)
 				.onChange((v) => (d.layout = v === 'nested' ? 'nested' : 'flat')));
 
-		let archiveText: TextComponent | undefined;
-		const archiveSetting = new Setting(el)
-			.setName('Archive folder')
-			.setDesc('Optional folder where this agent keeps disabled skills. When set, unticking moves the skill there instead of deleting it, and ticking moves it back. Relative to the skills folder (.archive), or anywhere else (~/archives/hermes-skills, /mnt/backup/skills). Leave empty if the agent has none.')
-			.addText((t) => {
-				archiveText = t;
-				t.setPlaceholder('.archive').setValue(d.archiveDir).onChange((v) => (d.archiveDir = v.trim()));
-				t.inputEl.addClass('ash-wide-input');
+		const archive: Field = {
+			setting: new Setting(el)
+				.setName('Archive folder')
+				.setDesc('Optional folder where this agent keeps disabled skills. When set, unticking moves the skill there instead of deleting it, and ticking moves it back. Relative to the skills folder (.archive), or anywhere else (~/archives/hermes-skills, /mnt/backup/skills). Leave empty if the agent has none.'),
+		};
+		archive.setting.addText((t) => {
+			archive.input = t;
+			t.setPlaceholder('.archive').setValue(d.archiveDir).onChange((v) => {
+				d.archiveDir = v.trim();
+				this.touched.add('archive');
+				this.validate();
 			});
-		addFolderBrowse(archiveSetting, () => archiveText, `Archive folder for ${d.label || noun}`, {
+			t.inputEl.addClass('ash-wide-input');
+		});
+		addFolderBrowse(archive.setting, () => archive.input, `Archive folder for ${d.label || noun}`, {
 			toAbs: (v) => archiveRoot({ ...this.draft, path: expandHome(this.draft.path), archiveDir: v }) ?? expandHome(this.draft.path),
 			fromAbs: (abs) => {
 				const skills = expandHome(this.draft.path);
@@ -131,36 +160,57 @@ export class AgentModal extends Modal {
 				return skills && rel && !rel.startsWith('..') && !isAbsolute(rel) ? rel.split(sep).join('/') : contractHome(abs);
 			},
 		});
+		this.fields.archive = archive;
 
 		new Setting(el)
 			.addButton((b) => b.setButtonText('Cancel').onClick(() => this.close()))
-			.addButton((b) => b.setButtonText(this.creating ? 'Add' : 'Save').setCta().onClick(() => void this.save()));
+			.addButton((b) => {
+				this.saveButton = b;
+				b.setButtonText(this.creating ? 'Add' : 'Save').setCta().onClick(() => void this.save());
+			});
+
+		this.validate();
 	}
 
-	private updateIdDesc(s: Setting): void {
-		const id = this.draft.id || '<id>';
-		s.setDesc(this.creating
-			? `Property name: ${this.opts.prefix}${id}. Can't be changed later.`
-			: `Property name: ${this.opts.prefix}${id}. Fixed, because skill notes already use it.`);
-	}
+	/** Refresh every field's description and error, and enable Save only when the form is valid. */
+	private validate(): boolean {
+		const d = this.draft;
+		const f = this.fields;
+		const ctx = { others: this.others, hubDir: this.opts.hubDir };
 
-	private updatePathDesc(s: Setting): void {
-		const p = this.draft.path;
-		const status = !p ? '' : existsSync(expandHome(p)) ? ' Folder found.' : " This folder doesn't exist yet; it will be used once created.";
-		s.setDesc(`Folder this ${this.draft.kind} reads skills from. Type a path or use the folder button.${status}`);
+		const nameError = d.label.trim() ? null : 'Required.';
+
+		const finalId = normalizeIdInput(d.id);
+		const idError = this.creating ? (finalId ? validateAgentId(finalId, this.others) : 'Required.') : null;
+		f.id?.setting.setDesc(this.creating
+			? `Lowercase letters, digits and dashes. Property name: ${this.opts.prefix}${finalId || '<id>'}. Can't be changed later.`
+			: `Property name: ${this.opts.prefix}${d.id}. Fixed, because skill notes already use it.`);
+
+		const pathError = validateAgentFolder(d.path, ctx);
+		const status = pathError || !d.path ? '' : existsSync(expandHome(d.path)) ? ' Folder found.' : " This folder doesn't exist yet; it will be used once created.";
+		f.path?.setting.setDesc(`Folder this ${d.kind} reads skills from. Type a path or use the folder button.${status}`);
+
+		const archiveError = validateArchiveFolder(d.archiveDir, { ...ctx, skillsFolder: d.path });
+
+		const show = (key: keyof AgentModal['fields'], error: string | null, visible = this.touched.has(key)): void => {
+			const field = f[key];
+			if (field) showFieldError(field.setting, field.input, !this.creating || visible ? error : null);
+		};
+		show('name', nameError);
+		// The ID follows the name, so it is checked as soon as either was typed in.
+		show('id', idError, this.touched.has('name') || this.touched.has('id'));
+		show('path', pathError);
+		show('archive', archiveError);
+
+		const ok = !nameError && !idError && !pathError && !archiveError;
+		this.saveButton?.setDisabled(!ok);
+		return ok;
 	}
 
 	private async save(): Promise<void> {
+		if (!this.validate()) return;
 		const d = this.draft;
-		d.label = d.label.trim();
-		if (!d.label) return void new Notice('Give it a name.');
-		if (!d.path) return void new Notice('Choose its skills folder.');
-		if (this.creating) {
-			const err = validateAgentId(d.id, this.opts.existing);
-			if (err) return void new Notice(err);
-		}
-		if (d.archiveDir && archiveRoot({ ...d, path: expandHome(d.path) }) === expandHome(d.path)) return void new Notice('The archive folder must differ from the skills folder.');
-		await this.opts.onSave({ ...d });
+		await this.opts.onSave({ ...d, label: d.label.trim(), id: this.creating ? normalizeIdInput(d.id) : d.id });
 		this.close();
 	}
 }

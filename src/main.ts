@@ -1,4 +1,4 @@
-import { FileSystemAdapter, normalizePath, Notice, Plugin, TAbstractFile, TFile } from 'obsidian';
+import { FileSystemAdapter, normalizePath, Notice, Plugin, TAbstractFile, TFile, TFolder } from 'obsidian';
 import { join, relative, sep } from 'path';
 import { detectPresets, expandHome } from './core/agents';
 import { defaultBase, ensureAgentColumns } from './core/base';
@@ -43,7 +43,7 @@ export default class AgentSkillsHub extends Plugin {
 		this.addCommand({ id: 'sync-now', name: 'Sync now', callback: () => void this.sync() });
 		this.addCommand({
 			id: 'new-skill', name: 'New skill',
-			callback: () => new NewSkillModal(this.app, (n, d) => void this.newSkill(n, d)).open(),
+			callback: () => new NewSkillModal(this.app, this.skillNames(), (n, d) => void this.newSkill(n, d)).open(),
 		});
 		this.addCommand({ id: 'create-base', name: 'Create or update the skills base', callback: () => void this.ensureBase(true) });
 		this.addCommand({ id: 'fill-missing-sources', name: 'Fill in missing skill sources', callback: () => void this.fillSources() });
@@ -209,6 +209,11 @@ export default class AgentSkillsHub extends Plugin {
 			const removed = await removeFromAgents(this.config(), name);
 			new Notice(`Removed "${name}" from ${removed.length} agent folder${removed.length === 1 ? '' : 's'}.`);
 		});
+	}
+
+	private skillNames(): string[] {
+		const hub = this.app.vault.getAbstractFileByPath(normalizePath(this.settings.hubFolder));
+		return hub instanceof TFolder ? hub.children.filter((c) => c instanceof TFolder).map((c) => c.name) : [];
 	}
 
 	private async newSkill(name: string, description: string): Promise<void> {

@@ -66,3 +66,11 @@
 .ash-conflict .setting-item {
 	padding-inline: var(--size-4-4);
 }
+.ash-field-error {
+	color: var(--text-error);
+	margin-top: var(--size-2-1);
+}
+input.ash-invalid {
+	border-color: var(--text-error);
+	box-shadow: 0 0 0 1px var(--text-error);
+}

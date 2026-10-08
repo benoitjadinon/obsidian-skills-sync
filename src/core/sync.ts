@@ -9,6 +9,7 @@ import { findSymlinks, migrate } from './migrate';
 import type { AgentState, SkillCopy, SkillGroup, SyncConfig } from './model';
 import { VAULT } from './model';
 import { exists, scanAgent, scanVault } from './scan';
+import { validateSkillName } from './validate';
 
 export interface ConflictRequest {
 	group: SkillGroup;
@@ -139,7 +140,7 @@ export async function runSync(cfg: SyncConfig, resolver: Resolver): Promise<Sync
 }
 
 export function validSkillName(name: string): boolean {
-	return /^[A-Za-z0-9][A-Za-z0-9._ -]*$/.test(name) && !name.includes('..');
+	return validateSkillName(name, []) === null;
 }
 
 export async function createSkill(cfg: SyncConfig, name: string, description: string): Promise<string> {

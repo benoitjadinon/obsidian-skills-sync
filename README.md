@@ -24,7 +24,7 @@ Because it's a regular Base, it's also yours to shape:
 
 ## Features
 
-- **One table for every skill and agent.** A ready-made Base lists your skills with one checkbox column per agent, plus views for undecided skills, unassigned skills and conflicts. Tick a box to share a skill with that agent, untick it to remove it there.
+- **One table for every skill and agent.** A ready-made Base lists your skills with one checkbox column per agent, plus views for undecided skills, unassigned skills and conflicts. Its first column, **Skill**, shows each skill's folder name and opens its `SKILL.md` when clicked (every file is named `SKILL`, so the file name alone doesn't tell skills apart). Tick a box to share a skill with that agent, untick it to remove it there.
 - **Three states per agent.** Ticked: shared. Unticked: removed from that agent (or moved to its archive). Empty: undecided, so the plugin never touches that agent's copy. New agents and new skills start undecided, so adding an agent never floods it with skills.
 - **Real copies, no symlinks.** Each agent gets a plain folder it can read like any other skill. Existing symlinked setups are migrated to copies, after you confirm.
 - **Two-way sync without a database.** Edits in Obsidian are pushed to the ticked agents. Updates made by other tools inside an agent's folder (for example an agent updating its own bundled skills) are detected and offered for import into the vault and on to the other agents. All state lives in each skill's frontmatter.

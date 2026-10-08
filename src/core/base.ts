@@ -18,6 +18,9 @@ const orderCol = (o: BaseOptions, id: string): string => `${o.prefix}${id}`;
 /** `note.agent-x` and `agent-x` name the same property. */
 const bare = (key: string): string => (key.startsWith('note.') ? key.slice('note.'.length) : key);
 const keyOf = (item: unknown): string => String(isScalar(item) ? item.value : item);
+/** Formula giving each row a clickable link to its SKILL.md, shown as the skill folder name. */
+const skillFormulaId = (o: BaseOptions): string => `${o.prefix}skillfile`;
+const skillFormula = (o: BaseOptions): string => `file.asLink(file.folder.replace(${JSON.stringify(`${o.hubFolder}/`)}, ""))`;
 const ref = (o: BaseOptions, id: string): string => `note[${JSON.stringify(o.prefix + id)}]`;
 const undecided = (o: BaseOptions) => ({ or: o.agents.map((a) => `${ref(o, a.id)} == null`) });
 const unassigned = (o: BaseOptions) => ({ and: o.agents.map((a) => `${ref(o, a.id)} != true`) });
@@ -35,16 +38,16 @@ function dedupeOrder(order: YAMLSeq): Set<string> {
 }
 
 export function defaultBase(o: BaseOptions): string {
-	const order = ['formula.skill', 'description', ...o.agents.map((a) => orderCol(o, a.id)), orderCol(o, 'source'), orderCol(o, 'path')];
+	const order = [`formula.${skillFormulaId(o)}`, 'description', ...o.agents.map((a) => orderCol(o, a.id)), orderCol(o, 'source'), orderCol(o, 'path')];
 	const properties: Record<string, { displayName: string }> = {
-		'formula.skill': { displayName: 'Skill' },
+		[`formula.${skillFormulaId(o)}`]: { displayName: 'Skill' },
 		[col(o, 'source')]: { displayName: 'Source' },
 		[col(o, 'path')]: { displayName: 'Path' },
 	};
 	for (const a of o.agents) properties[col(o, a.id)] = { displayName: a.label };
 	return stringify({
 		filters: { and: [`file.inFolder(${JSON.stringify(o.hubFolder)})`, 'file.name == "SKILL"'] },
-		formulas: { skill: `file.asLink(file.folder.replace(${JSON.stringify(`${o.hubFolder}/`)}, ""))` },
+		formulas: { [skillFormulaId(o)]: skillFormula(o) },
 		properties,
 		views: [
 			{ type: 'table', name: VIEW_ALL, order },
@@ -63,6 +66,9 @@ export function ensureAgentColumns(text: string, o: BaseOptions): string {
 		const has = doc.hasIn(['properties', col(o, c.id)]) || doc.hasIn(['properties', orderCol(o, c.id)]);
 		if (!has) doc.setIn(['properties', col(o, c.id)], doc.createNode({ displayName: c.label }));
 	}
+	const formulaKey = `formula.${skillFormulaId(o)}`;
+	if (!doc.hasIn(['formulas', skillFormulaId(o)])) doc.setIn(['formulas', skillFormulaId(o)], skillFormula(o));
+	if (!doc.hasIn(['properties', formulaKey])) doc.setIn(['properties', formulaKey], doc.createNode({ displayName: 'Skill' }));
 	const views = doc.get('views');
 	if (isSeq(views)) {
 		for (const view of views.items) {
@@ -74,6 +80,7 @@ export function ensureAgentColumns(text: string, o: BaseOptions): string {
 			}
 			if (isSeq(order)) {
 				const seen = dedupeOrder(order);
+				if (!seen.has(formulaKey)) order.items.unshift(doc.createNode(formulaKey));
 				for (const c of columns) if (!seen.has(orderCol(o, c.id))) order.add(doc.createNode(orderCol(o, c.id)));
 			}
 			const name = view.get('name');

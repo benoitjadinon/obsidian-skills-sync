@@ -99,6 +99,6 @@ describe('base Source column', () => {
 		expect(ensureAgentColumns(once, o)).toBe(once);
 		const b = parse(once) as B;
 		expect(b.properties['note.agent-source']?.displayName).toBe('Source');
-		expect(b.views[0]?.order).toEqual(['file.name', 'agent-claude', 'agent-source']);
+		expect(b.views[0]?.order).toEqual(['formula.agent-skillfile', 'file.name', 'agent-claude', 'agent-source']);
 	});
 });

@@ -13,7 +13,7 @@ describe('defaultBase', () => {
 		expect(b.filters.and).toEqual(['file.inFolder("Skills")', 'file.name == "SKILL"']);
 		expect(b.properties['note.agent-claude']?.displayName).toBe('CLAUDE');
 		expect(b.views.map((v) => v.name)).toEqual(['All skills', 'Undecided', 'Unassigned', 'Conflicts']);
-		expect(b.views[0]?.order).toEqual(['formula.skill', 'description', 'agent-claude', 'agent-codex', 'agent-source', 'agent-path']);
+		expect(b.views[0]?.order).toEqual(['formula.agent-skillfile', 'description', 'agent-claude', 'agent-codex', 'agent-source', 'agent-path']);
 		expect(b.views[1]?.filters?.or).toEqual(['note["agent-claude"] == null', 'note["agent-codex"] == null']);
 	});
 });
@@ -44,7 +44,7 @@ views:
 		expect(b.pluginVersion).toBe('1.0.0');
 		expect(b.filters.and[0]).toBe('file.folder.startsWith("AI/skills")');
 		expect(b.properties['note.agent-claude']?.displayName).toBe('CLAUDE');
-		expect(b.views[0]?.order).toEqual(['file.name', 'name', 'description', 'agent-claude', 'agent-source']);
+		expect(b.views[0]?.order).toEqual(['formula.agent-skillfile', 'file.name', 'name', 'description', 'agent-claude', 'agent-source']);
 	});
 	it('refreshes the managed Undecided and Unassigned filters when agents are added', () => {
 		const b = parse(ensureAgentColumns(defaultBase(opts(['claude'])), opts(['claude', 'hermes']))) as Base;
@@ -78,7 +78,7 @@ views:
 	it('ensureAgentColumns treats both spellings as one column and removes duplicates', () => {
 		const out = ensureAgentColumns(messy, o(['claude', 'cursor']));
 		const b = parse(out) as B;
-		expect(b.views[0]?.order).toEqual(['file.name', 'agent-claude', 'agent-cursor', 'note.agent-source']);
+		expect(b.views[0]?.order).toEqual(['formula.agent-skillfile', 'file.name', 'agent-claude', 'agent-cursor', 'note.agent-source']);
 		expect(ensureAgentColumns(out, o(['claude', 'cursor']))).toBe(out);
 	});
 	it('new columns use the plain spelling Obsidian writes', () => {
@@ -92,5 +92,33 @@ views:
 		const b = parse(out) as B;
 		expect(b.views[0]?.order).toEqual(['file.name', 'agent-claude', 'note.agent-source']);
 		expect(b.properties['note.agent-claude']?.displayName).toBe('Claude Code');
+	});
+});
+
+describe('skill link formula', () => {
+	const o = { hubFolder: 'AI/skills', prefix: 'agent-', agents: [{ id: 'claude', label: 'Claude' }] };
+	interface B { formulas: Record<string, string>; properties: Record<string, { displayName: string }>; views: { order: string[] }[] }
+	const FORMULA = 'file.asLink(file.folder.replace("AI/skills/", ""))';
+	it('is the first column of a new base, displayed as Skill', () => {
+		const b = parse(defaultBase(o)) as B;
+		expect(b.formulas['agent-skillfile']).toBe(FORMULA);
+		expect(b.properties['formula.agent-skillfile']?.displayName).toBe('Skill');
+		expect(b.views[0]?.order[0]).toBe('formula.agent-skillfile');
+		expect(b.formulas['skill']).toBeUndefined();
+	});
+	it('is added first to every table view of an existing base, once', () => {
+		const existing = 'views:\n  - type: table\n    name: Table\n    order:\n      - file.name\n      - description\n';
+		const once = ensureAgentColumns(existing, o);
+		expect(ensureAgentColumns(once, o)).toBe(once);
+		const b = parse(once) as B;
+		expect(b.formulas['agent-skillfile']).toBe(FORMULA);
+		expect(b.properties['formula.agent-skillfile']?.displayName).toBe('Skill');
+		expect(b.views[0]?.order.slice(0, 3)).toEqual(['formula.agent-skillfile', 'file.name', 'description']);
+	});
+	it('keeps a user-edited formula and position', () => {
+		const custom = 'formulas:\n  agent-skillfile: file.asLink("x")\nviews:\n  - type: table\n    name: T\n    order:\n      - file.name\n      - formula.agent-skillfile\n';
+		const b = parse(ensureAgentColumns(custom, o)) as B;
+		expect(b.formulas['agent-skillfile']).toBe('file.asLink("x")');
+		expect(b.views[0]?.order.slice(0, 2)).toEqual(['file.name', 'formula.agent-skillfile']);
 	});
 });

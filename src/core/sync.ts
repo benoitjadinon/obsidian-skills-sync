@@ -249,7 +249,7 @@ export async function rewriteStates(
 }
 
 /**
- * "Tick the skills already in its folder" for an agent added earlier: clear its undecided (empty) property
+ * "Resync with its folder" for an agent added earlier: clear its undecided (empty) property
  * on skills it holds, so the next sync adopts them like for a newly added agent. Explicit choices
  * (true/false) are kept. Returns the skills whose property was cleared.
  */
@@ -276,4 +276,20 @@ export async function resetUndecided(cfg: SyncConfig, agentId: string): Promise<
 /** Default name for a version kept as a separate skill: the skill name with the agent as a suffix. */
 export function splitName(skill: string, owner: string): string {
 	return `${skill}-${owner}`;
+}
+
+/** Before "Resync with its folder": which undecided skills the agent holds, identical or different. */
+export async function previewUndecided(cfg: SyncConfig, agentId: string): Promise<{ identical: string[]; different: string[] }> {
+	const live = await liveConfig(cfg);
+	const owners = new Set(live.agents.filter((a) => (a.stateKey ?? a.id) === agentId).map((a) => a.id));
+	const identical: string[] = [];
+	const different: string[] = [];
+	for (const g of await loadGroups(cfg)) {
+		const v = g.vault;
+		if (!v || !(agentId in v.meta.states) || v.meta.states[agentId] !== null) continue;
+		const held = g.copies.filter((c) => owners.has(c.owner) && !c.archived);
+		if (held.length === 0) continue;
+		(held.every((c) => c.key === v.copy.key) ? identical : different).push(g.name);
+	}
+	return { identical, different };
 }

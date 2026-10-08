@@ -164,3 +164,18 @@ describe('keep as separate skills, with a chosen name', () => {
 		expect(w.tree('claude')['computer-use/SKILL.md']).toBe(orca);
 	});
 });
+
+describe('preview before ticking the skills already in an agent folder', () => {
+	it('counts identical and different copies among the undecided skills it holds', async () => {
+		const { previewUndecided } = await import('../../src/core/sync');
+		const w = hermesWorld();
+		w.put('vault', {
+			'a/SKILL.md': w.vaultMd(skillMd('a'), { claude: true, hermes: null }),
+			'b/SKILL.md': w.vaultMd(skillMd('b'), { claude: true, hermes: null }),
+			'c/SKILL.md': w.vaultMd(skillMd('c'), { claude: true, hermes: true }),
+			'd/SKILL.md': w.vaultMd(skillMd('d'), { claude: true, hermes: null }),
+		}, T0);
+		w.put('hermes', { 'x/a/SKILL.md': skillMd('a'), 'b/SKILL.md': skillMd('b', '# different\n'), 'c/SKILL.md': skillMd('c') }, T0);
+		expect(await previewUndecided(w.cfg, 'hermes')).toEqual({ identical: ['a'], different: ['b'] });
+	});
+});

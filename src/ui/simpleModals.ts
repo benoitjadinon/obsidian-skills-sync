@@ -9,7 +9,7 @@ export class ConfirmModal extends Modal {
 	private done: (ok: boolean) => void = () => undefined;
 	private stopGuard: () => void = () => undefined;
 
-	constructor(app: App, private readonly heading: string, private readonly message: string, private readonly confirmText: string) {
+	constructor(app: App, private readonly heading: string, private readonly message: string | string[], private readonly confirmText: string) {
 		super(app);
 	}
 
@@ -30,7 +30,7 @@ export class ConfirmModal extends Modal {
 
 	onOpen(): void {
 		this.setTitle(this.heading);
-		this.contentEl.createEl('p', { text: this.message });
+		for (const text of Array.isArray(this.message) ? this.message : [this.message]) this.contentEl.createEl('p', { text });
 		new Setting(this.contentEl)
 			.addButton((b) => b.setButtonText(this.confirmText).setCta().onClick(() => {
 				this.answer = true;

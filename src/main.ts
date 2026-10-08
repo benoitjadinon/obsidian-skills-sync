@@ -9,7 +9,7 @@ import { hasMarkers } from './core/merge';
 import type { SyncConfig } from './core/model';
 import { isConflictFile } from './core/scan';
 import { projectColumns, switchStates, syncTargets } from './core/projects';
-import { type SyncReport, createSkill, deleteEverywhere, removeAgentFromNotes, resetUndecided, rewriteStates, fillMissingSources, findAgentCopies, removeFromAgents, runSync } from './core/sync';
+import { type SyncReport, createSkill, deleteEverywhere, previewUndecided, removeAgentFromNotes, resetUndecided, rewriteStates, fillMissingSources, findAgentCopies, removeFromAgents, runSync } from './core/sync';
 import { Watcher } from './core/watcher';
 import { DEFAULT_SETTINGS, type HubSettings, HubSettingTab } from './settings';
 import { ObsidianResolver } from './ui/resolver';
@@ -479,10 +479,28 @@ export default class AgentSkillsHub extends Plugin {
 	}
 
 	/**
-	 * Tick the skills an agent already has (for agents added before that was automatic): its undecided
+	 * Resync with an agent's folder (for agents added before that was automatic): its undecided
 	 * skills that it holds are adopted by the next sync; differing copies are asked about.
 	 */
 	async adoptExisting(agentId: string, label: string): Promise<void> {
+		if (this.busy) return void new Notice('A sync is already running, or waiting for your answer in a dialog.');
+		const { identical, different } = await previewUndecided(this.config(), agentId);
+		if (identical.length + different.length === 0) return void new Notice(`${label} has no undecided skills in its folder.`);
+		const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
+		const shown = different.slice(0, 8).join(', ') + (different.length > 8 ? `, and ${different.length - 8} more` : '');
+		const ok = await new ConfirmModal(
+			this.app,
+			`Resync with ${label}'s folder?`,
+			[
+				...(identical.length > 0 ? [`Its folder has ${plural(identical.length, 'skill', 'skills')} you left undecided that ${identical.length === 1 ? 'is' : 'are'} identical to the vault: they will be ticked, no files change.`] : []),
+				...(different.length > 0
+					? [`${plural(different.length, 'skill differs', 'skills differ')} (${shown}): you'll choose for each in a conflict dialog. Keeping one version updates the other copies; Skip changes nothing.`]
+					: []),
+				'This runs a full sync, so other pending changes are applied too.',
+			],
+			'Resync',
+		).openAndWait();
+		if (!ok) return;
 		const cleared = await this.exclusive(() => resetUndecided(this.config(), agentId));
 		if (cleared === undefined) return void new Notice('A sync is already running, or waiting for your answer in a dialog.');
 		new Notice(cleared.length > 0 ? `${label}: checking ${cleared.length} skill${cleared.length === 1 ? '' : 's'} it already has.` : `${label} has no undecided skills it already holds.`);

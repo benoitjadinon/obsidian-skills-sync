@@ -143,7 +143,7 @@ npm run build
 - `npm test` runs vitest (pinned to v3, because v5 conflicts with esbuild 0.25). Unit tests cover each core module; `tests/scenarios/` builds a temp vault plus temp agent folders and runs a full `runSync` with a `StubResolver`.
 - Tests must use temp dirs only. Never touch real agent folders (`~/.claude`, `~/.hermes`, …) or a real vault.
 - Set file mtimes explicitly (`put(..., T0)` / `touch`). Sync direction depends on dates; for example, a single ticked agent loses to a newer vault note.
-- `tests/watcher.test.ts` is timing-based and can flake under heavy load; rerun before investigating.
+- `tests/watcher.test.ts` tests debounce and pause with manual timers, and real `fs.watch` only loosely (at least one change noticed). Keep timing out of assertions.
 - `npm run build` runs `tsc` (`moduleResolution: bundler`, which `node-diff3` types need) and esbuild. `npm run lint` must report 0 errors; the remaining warnings are known.
 - Manual check: `docs/e2e-checklist.md`, in a scratch vault whose `data.json` is pre-seeded with `initialized: true` and `agents: []`, so the plugin doesn't auto-detect real agent folders.
 - Manual install: copy `main.js`, `manifest.json` and `styles.css` to `<Vault>/.obsidian/plugins/skills-sync/`, then reload Obsidian and enable the plugin.

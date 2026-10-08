@@ -32,7 +32,7 @@ export class Watcher {
 			}
 			for (const t of targets) {
 				try {
-					const w = watch(t, { recursive }, () => this.trigger());
+					const w = watch(t, { recursive }, () => this.notify());
 					w.on('error', () => undefined);
 					this.watchers.push(w);
 				} catch {
@@ -57,7 +57,8 @@ export class Watcher {
 		this.paused = Math.max(0, this.paused - 1);
 	}
 
-	private trigger(): void {
+	/** Report a change (called by the file watchers; public for tests). */
+	notify(): void {
 		if (this.paused > 0) return;
 		if (this.timer !== null) this.timers.clearTimeout(this.timer);
 		this.timer = this.timers.setTimeout(() => {

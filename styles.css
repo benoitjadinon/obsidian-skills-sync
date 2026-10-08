@@ -97,3 +97,17 @@ input.ash-invalid {
 .setting-item.ash-stacked .setting-item-control input[type='text'] {
 	flex: 1 1 100%;
 }
+.ash-tag {
+	margin-inline-start: var(--size-4-2);
+	padding: 0 var(--size-4-1);
+	border-radius: var(--radius-s);
+	font-size: var(--font-smallest);
+	font-weight: var(--font-normal);
+	vertical-align: middle;
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+}
+.ash-tag-custom {
+	color: var(--text-accent);
+	border-color: var(--text-accent);
+}

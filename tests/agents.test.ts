@@ -83,3 +83,30 @@ describe('archiveRoot', () => {
 		expect(archiveRoot({ ...a, archiveDir: '~/Archive/skills' }, '/home/me')).toBe(join('/home/me', 'Archive/skills'));
 	});
 });
+
+describe('agent origin', () => {
+	const custom = (id: string, label: string, path = `~/.${id}/skills`) => ({ id, label, path, kind: 'agent' as const, layout: 'flat' as const, archiveDir: '' });
+	it('infers the preset of agents saved before the field existed', async () => {
+		const { inferPreset } = await import('../src/core/agents');
+		expect(inferPreset(custom('claude', 'Claude Code', '~/.claude/skills'))).toBe('claude');
+		expect(inferPreset(custom('claude', 'Mine', '~/elsewhere/skills'))).toBeUndefined();
+		expect(inferPreset(custom('pi', 'pi', '~/.pi/agent/skills'))).toBeUndefined();
+		expect(inferPreset({ ...custom('x', 'X'), preset: 'codex' })).toBe('codex');
+	});
+	it('lists preset agents first, then custom ones, each by name', async () => {
+		const { sortAgentsForList } = await import('../src/core/agents');
+		const list = [
+			custom('zed-thing', 'Zed thing'),
+			{ ...custom('codex', 'Codex'), preset: 'codex' },
+			custom('alpha', 'alpha'),
+			{ ...custom('claude', 'Claude Code'), preset: 'claude' },
+		];
+		expect(sortAgentsForList(list).map((a) => a.id)).toEqual(['claude', 'codex', 'alpha', 'zed-thing']);
+	});
+	it('detected presets remember their origin', async () => {
+		const { detectPresets } = await import('../src/core/agents');
+		const home = tmp();
+		mkdirSync(join(home, '.claude/skills'), { recursive: true });
+		expect(detectPresets(home)[0]?.preset).toBe('claude');
+	});
+});

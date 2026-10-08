@@ -23,15 +23,10 @@ const OVERRIDES: Record<string, Partial<Omit<AgentConfig, 'path' | 'kind'>>> = {
 };
 
 /** Known agents, generated from vercel-labs/skills by `npm run presets:update`. */
-export const PRESETS: AgentConfig[] = (generated.presets as GeneratedPreset[]).map((p) => ({
-	id: p.name,
-	label: p.label,
-	path: p.path,
-	kind: 'agent',
-	layout: 'flat',
-	archiveDir: '',
-	...OVERRIDES[p.path],
-}));
+export const PRESETS: AgentConfig[] = (generated.presets as GeneratedPreset[]).map((p) => {
+	const agent: AgentConfig = { id: p.name, label: p.label, path: p.path, kind: 'agent', layout: 'flat', archiveDir: '', ...OVERRIDES[p.path] };
+	return { ...agent, preset: agent.id };
+});
 
 export const PRESETS_SOURCE: string = generated.source;
 
@@ -80,4 +75,21 @@ export function availablePresets(configured: AgentConfig[], home: string = homed
 	return PRESETS.filter((p) => !taken.has(expandHome(p.path, home)))
 		.map((preset) => ({ preset, installed: existsSync(expandHome(preset.path, home)) }))
 		.sort((a, b) => Number(b.installed) - Number(a.installed) || a.preset.label.localeCompare(b.preset.label));
+}
+
+/**
+ * The preset an agent was created from. Agents saved before `preset` existed are matched to a
+ * known agent with the same id and skills folder.
+ */
+export function inferPreset(agent: AgentConfig, home: string = homedir()): string | undefined {
+	if (agent.preset) return agent.preset;
+	const path = expandHome(agent.path, home);
+	return PRESETS.find((p) => p.id === agent.id && expandHome(p.path, home) === path)?.id;
+}
+
+/** Settings list order: agents created from a preset first, then custom ones, each by name. */
+export function sortAgentsForList(agents: AgentConfig[]): AgentConfig[] {
+	return [...agents].sort(
+		(a, b) => Number(!inferPreset(a)) - Number(!inferPreset(b)) || a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }),
+	);
 }

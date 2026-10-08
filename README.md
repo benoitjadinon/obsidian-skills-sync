@@ -20,7 +20,7 @@ Keep all your AI agent skills in one Obsidian folder, decide in a table which ag
 1. Install **Skills Sync** from **Settings → Community plugins → Browse**, and enable it. It runs on desktop only.
 2. Open **Settings → Skills Sync**:
    - **Skills folder**: the vault folder that holds one subfolder per skill (default `Skills`).
-   - **Agents**: the agents installed on your computer are already listed. Use **Add agent…** to add others: pick one of the known agents or enter your own skills folder. Use **Add project…** for a project's skills folder.
+   - **Agents**: the agents installed on your computer are already listed. Each one is tagged **Preset** (created from a known agent) or **Custom**, with preset agents first. Use **Add agent…** to add others: pick one of the known agents or enter your own skills folder. Use **Add project…** for a project's skills folder.
 3. Run the command **Create or update the skills base**. It creates `Skills/Skills.base` (or adds the agent columns to an existing base) and opens it.
 4. The first sync imports every skill found in your agents' folders. Each one is ticked for the agents that already had it and left empty for the others. From then on, tick and untick boxes in the base.
 

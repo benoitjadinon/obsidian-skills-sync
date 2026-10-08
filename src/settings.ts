@@ -1,7 +1,7 @@
 import { App, type DropdownComponent, FileSystemAdapter, normalizePath, Notice, PluginSettingTab, Setting, type TextComponent } from 'obsidian';
 import { existsSync } from 'fs';
 import { isAbsolute, join, relative, sep } from 'path';
-import { expandHome } from './core/agents';
+import { expandHome, inferPreset, sortAgentsForList } from './core/agents';
 import type { AgentConfig } from './core/model';
 import type AgentSkillsHub from './main';
 import { AgentModal } from './ui/AgentModal';
@@ -150,7 +150,7 @@ export class HubSettingTab extends PluginSettingTab {
 			.addButton((b) => b
 				.setButtonText(kind === 'agent' ? 'Add agent…' : 'Add project…')
 				.onClick(() => this.openForm(kind)));
-		const items = s.agents.filter((a) => a.kind === kind);
+		const items = sortAgentsForList(s.agents.filter((a) => a.kind === kind));
 		if (items.length === 0) {
 			el.createEl('p', { cls: 'setting-item-description', text: kind === 'agent' ? 'No agents yet.' : 'No project skills folders yet.' });
 		}
@@ -158,8 +158,15 @@ export class HubSettingTab extends PluginSettingTab {
 			const layout = a.layout === 'nested' ? 'category subfolders' : 'flat';
 			const archive = a.archiveDir ? ` · archive ${a.archiveDir}` : '';
 			const missing = existsSync(expandHome(a.path)) ? '' : ' · folder not found';
+			const name = createFragment((f) => {
+				f.appendText(a.label);
+				if (kind === 'agent') {
+					const preset = inferPreset(a) !== undefined;
+					f.createSpan({ cls: `ash-tag ${preset ? 'ash-tag-preset' : 'ash-tag-custom'}`, text: preset ? 'Preset' : 'Custom' });
+				}
+			});
 			new Setting(el)
-				.setName(a.label)
+				.setName(name)
 				.setDesc(`${a.path} · ${layout}${archive} · ${s.propPrefix}${a.id}${missing}`)
 				.addExtraButton((b) => b.setIcon('pencil').setTooltip('Edit').onClick(() => this.openForm(kind, a)))
 				.addExtraButton((b) => b.setIcon('trash').setTooltip('Remove').onClick(async () => {

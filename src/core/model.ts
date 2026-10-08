@@ -10,6 +10,8 @@ export interface AgentConfig {
 	layout: Layout;
 	/** Folder (relative to path) holding archived skills; '' = no archive. */
 	archiveDir: string;
+	/** Id of the known agent (preset) this one was created from; absent for custom agents. */
+	preset?: string;
 }
 
 export interface SyncConfig {

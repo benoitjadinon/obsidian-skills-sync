@@ -1,6 +1,6 @@
 import { FileSystemAdapter, normalizePath, Notice, Plugin, TAbstractFile, TFile, TFolder } from 'obsidian';
 import { join, relative, sep } from 'path';
-import { detectPresets, expandHome } from './core/agents';
+import { detectPresets, expandHome, inferPreset } from './core/agents';
 import { defaultBase, ensureAgentColumns } from './core/base';
 import { resolveConflictFiles } from './core/conflictFiles';
 import { hasMarkers } from './core/merge';
@@ -27,6 +27,17 @@ export default class AgentSkillsHub extends Plugin {
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
+		// Remember which agents came from a preset (settings saved before the field existed).
+		let migrated = false;
+		for (const a of this.settings.agents) {
+			if (a.kind !== 'agent' || a.preset) continue;
+			const preset = inferPreset(a);
+			if (preset) {
+				a.preset = preset;
+				migrated = true;
+			}
+		}
+		if (migrated) await this.saveSettings();
 		if (!this.settings.initialized) {
 			this.settings.agents = detectPresets();
 			this.settings.initialized = true;

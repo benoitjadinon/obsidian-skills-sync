@@ -1,6 +1,6 @@
 import { App, Modal, Notice, Setting, type TextComponent } from 'obsidian';
 import { existsSync } from 'fs';
-import { contractHome, expandHome, PRESETS, slugify, validateAgentId } from '../core/agents';
+import { availablePresets, contractHome, expandHome, PRESETS, PRESETS_SOURCE, slugify, validateAgentId } from '../core/agents';
 import type { AgentConfig } from '../core/model';
 import { addFolderBrowse } from './folderPicker';
 
@@ -46,14 +46,14 @@ export class AgentModal extends Modal {
 		this.setTitle(this.creating ? `Add ${noun}` : `Edit ${d.label || noun}`);
 
 		if (this.creating && d.kind === 'agent') {
-			const presets = PRESETS.filter((p) => !this.opts.existing.some((a) => a.id === p.id));
+			const presets = availablePresets(this.opts.existing);
 			if (presets.length > 0) {
 				new Setting(el)
 					.setName('Start from')
-					.setDesc('Fill the form with a known agent, or start from scratch.')
+					.setDesc(`Fill the form with a known agent (${PRESETS_SOURCE}), or start from scratch. Agents found on this computer are listed first.`)
 					.addDropdown((dd) => {
 						dd.addOption('', 'Custom');
-						for (const p of presets) dd.addOption(p.id, p.label);
+						for (const { preset, found } of presets) dd.addOption(preset.id, `${preset.label}${found ? ' (found)' : ''} — ${preset.path}`);
 						dd.setValue(PRESETS.some((p) => p.id === d.id) ? d.id : '').onChange((v) => {
 							const p = PRESETS.find((x) => x.id === v);
 							this.draft = p ? { ...p } : { id: '', label: '', path: '', kind: d.kind, layout: 'flat', archiveDir: '' };

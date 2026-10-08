@@ -15,7 +15,7 @@
   - `merge.ts`, `conflictFiles.ts`, `externalMerge.ts`: three-way merge, `SKILL.conflict.md`, and the external merge tool.
   - `migrate.ts`: symlink → copy migration.
   - `base.ts`: `.base` generation and column updates.
-  - `agents.ts`: presets.
+  - `agents.ts`: agent presets, built from `agentPresets.generated.json` plus a small `OVERRIDES` map (short legacy ids like `claude`, the shared `~/.agents` label, and the Hermes layout and archive).
   - `watcher.ts`: `fs.watch` with debounce.
 - The Obsidian layer: `main.ts` (commands, vault events, watcher gating via `exclusive()`), `settings.ts`, and `ui/` (modals, and `ObsidianResolver`, the resolver backed by them).
 
@@ -34,6 +34,13 @@
 - Undecided (empty) agents are never pushed to, pulled from or deleted from.
 - `agent-source` is written only on import (and by the **Fill in missing skill sources** backfill when absent); sync must preserve it as is.
 - Every delete or move goes through `assertInside` (agent root) and never writes through a symlinked skill folder.
+
+### Updating the agent presets
+
+- `npm run presets:update [-- <tag>]` (`scripts/update-presets.mjs`) downloads `src/agents.ts` from vercel-labs/skills at a pinned tag (default in the script, currently `v1.7.1`). It evaluates the table in a child process with a fake `HOME` and an empty environment, then rewrites `src/core/agentPresets.generated.json`.
+- Commit the regenerated JSON. The plugin never fetches presets at runtime.
+- Only agents with a global skills folder under home are kept, and the first agent wins when several share a folder.
+- Keep the ids of already-shipped presets stable through `OVERRIDES`: they become property names in users' notes.
 
 ### Adding a plugin property
 

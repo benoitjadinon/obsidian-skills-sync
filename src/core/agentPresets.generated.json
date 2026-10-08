@@ -1,0 +1,340 @@
+{
+	"source": "vercel-labs/skills@v1.7.1",
+	"presets": [
+		{
+			"name": "aider-desk",
+			"label": "AiderDesk",
+			"path": "~/.aider-desk/skills"
+		},
+		{
+			"name": "amp",
+			"label": "Amp",
+			"path": "~/.config/agents/skills"
+		},
+		{
+			"name": "antigravity",
+			"label": "Antigravity",
+			"path": "~/.gemini/antigravity/skills"
+		},
+		{
+			"name": "antigravity-cli",
+			"label": "Antigravity CLI",
+			"path": "~/.gemini/antigravity-cli/skills"
+		},
+		{
+			"name": "astrbot",
+			"label": "AstrBot",
+			"path": "~/.astrbot/data/skills"
+		},
+		{
+			"name": "autohand-code",
+			"label": "Autohand Code CLI",
+			"path": "~/.autohand/skills"
+		},
+		{
+			"name": "augment",
+			"label": "Augment",
+			"path": "~/.augment/skills"
+		},
+		{
+			"name": "bob",
+			"label": "IBM Bob",
+			"path": "~/.bob/skills"
+		},
+		{
+			"name": "claude-code",
+			"label": "Claude Code",
+			"path": "~/.claude/skills"
+		},
+		{
+			"name": "openclaw",
+			"label": "OpenClaw",
+			"path": "~/.openclaw/skills"
+		},
+		{
+			"name": "cline",
+			"label": "Cline",
+			"path": "~/.agents/skills"
+		},
+		{
+			"name": "codearts-agent",
+			"label": "CodeArts Agent",
+			"path": "~/.codeartsdoer/skills"
+		},
+		{
+			"name": "codebuddy",
+			"label": "CodeBuddy",
+			"path": "~/.codebuddy/skills"
+		},
+		{
+			"name": "codemaker",
+			"label": "Codemaker",
+			"path": "~/.codemaker/skills"
+		},
+		{
+			"name": "codestudio",
+			"label": "Code Studio",
+			"path": "~/.codestudio/skills"
+		},
+		{
+			"name": "codex",
+			"label": "Codex",
+			"path": "~/.codex/skills"
+		},
+		{
+			"name": "command-code",
+			"label": "Command Code",
+			"path": "~/.commandcode/skills"
+		},
+		{
+			"name": "continue",
+			"label": "Continue",
+			"path": "~/.continue/skills"
+		},
+		{
+			"name": "cortex",
+			"label": "Cortex Code",
+			"path": "~/.snowflake/cortex/skills"
+		},
+		{
+			"name": "crush",
+			"label": "Crush",
+			"path": "~/.config/crush/skills"
+		},
+		{
+			"name": "cursor",
+			"label": "Cursor",
+			"path": "~/.cursor/skills"
+		},
+		{
+			"name": "deepagents",
+			"label": "Deep Agents",
+			"path": "~/.deepagents/agent/skills"
+		},
+		{
+			"name": "devin",
+			"label": "Devin for Terminal",
+			"path": "~/.config/devin/skills"
+		},
+		{
+			"name": "droid",
+			"label": "Droid",
+			"path": "~/.factory/skills"
+		},
+		{
+			"name": "firebender",
+			"label": "Firebender",
+			"path": "~/.firebender/skills"
+		},
+		{
+			"name": "forgecode",
+			"label": "ForgeCode",
+			"path": "~/.forge/skills"
+		},
+		{
+			"name": "fx",
+			"label": "fx",
+			"path": "~/.fx/skills"
+		},
+		{
+			"name": "gemini-cli",
+			"label": "Gemini CLI",
+			"path": "~/.gemini/skills"
+		},
+		{
+			"name": "github-copilot",
+			"label": "GitHub Copilot",
+			"path": "~/.copilot/skills"
+		},
+		{
+			"name": "goose",
+			"label": "Goose",
+			"path": "~/.config/goose/skills"
+		},
+		{
+			"name": "grok",
+			"label": "Grok Build",
+			"path": "~/.grok/skills"
+		},
+		{
+			"name": "hermes-agent",
+			"label": "Hermes Agent",
+			"path": "~/.hermes/skills"
+		},
+		{
+			"name": "inference-sh",
+			"label": "inference.sh",
+			"path": "~/.inferencesh/skills"
+		},
+		{
+			"name": "jazz",
+			"label": "Jazz",
+			"path": "~/.jazz/skills"
+		},
+		{
+			"name": "junie",
+			"label": "Junie",
+			"path": "~/.junie/skills"
+		},
+		{
+			"name": "iflow-cli",
+			"label": "iFlow CLI",
+			"path": "~/.iflow/skills"
+		},
+		{
+			"name": "kilo",
+			"label": "Kilo Code",
+			"path": "~/.kilo/skills"
+		},
+		{
+			"name": "kimchi",
+			"label": "Kimchi",
+			"path": "~/.config/kimchi/harness/skills"
+		},
+		{
+			"name": "kiro-cli",
+			"label": "Kiro CLI",
+			"path": "~/.kiro/skills"
+		},
+		{
+			"name": "kode",
+			"label": "Kode",
+			"path": "~/.kode/skills"
+		},
+		{
+			"name": "lingma",
+			"label": "Lingma",
+			"path": "~/.lingma/skills"
+		},
+		{
+			"name": "mcpjam",
+			"label": "MCPJam",
+			"path": "~/.mcpjam/skills"
+		},
+		{
+			"name": "minimax-code",
+			"label": "MiniMax Code",
+			"path": "~/.minimax/skills"
+		},
+		{
+			"name": "mistral-vibe",
+			"label": "Mistral Vibe",
+			"path": "~/.vibe/skills"
+		},
+		{
+			"name": "moxby",
+			"label": "Moxby",
+			"path": "~/.moxby/skills"
+		},
+		{
+			"name": "mux",
+			"label": "Mux",
+			"path": "~/.mux/skills"
+		},
+		{
+			"name": "opencode",
+			"label": "OpenCode",
+			"path": "~/.config/opencode/skills"
+		},
+		{
+			"name": "openhands",
+			"label": "OpenHands",
+			"path": "~/.openhands/skills"
+		},
+		{
+			"name": "ona",
+			"label": "Ona",
+			"path": "~/.ona/skills"
+		},
+		{
+			"name": "posit-assistant",
+			"label": "Posit Assistant",
+			"path": "~/.posit/assistant/skills"
+		},
+		{
+			"name": "qoder",
+			"label": "Qoder",
+			"path": "~/.qoder/skills"
+		},
+		{
+			"name": "qoder-cn",
+			"label": "Qoder CN",
+			"path": "~/.qoder-cn/skills"
+		},
+		{
+			"name": "qwen-code",
+			"label": "Qwen Code",
+			"path": "~/.qwen/skills"
+		},
+		{
+			"name": "reasonix",
+			"label": "Reasonix",
+			"path": "~/.reasonix/skills"
+		},
+		{
+			"name": "rovodev",
+			"label": "Rovo Dev",
+			"path": "~/.rovodev/skills"
+		},
+		{
+			"name": "roo",
+			"label": "Roo Code",
+			"path": "~/.roo/skills"
+		},
+		{
+			"name": "tabnine-cli",
+			"label": "Tabnine CLI",
+			"path": "~/.tabnine/agent/skills"
+		},
+		{
+			"name": "terramind",
+			"label": "Terramind",
+			"path": "~/.terramind/skills"
+		},
+		{
+			"name": "tinycloud",
+			"label": "Tinycloud",
+			"path": "~/.tinycloud/skills"
+		},
+		{
+			"name": "trae",
+			"label": "Trae",
+			"path": "~/.trae/skills"
+		},
+		{
+			"name": "trae-cn",
+			"label": "Trae CN",
+			"path": "~/.trae-cn/skills"
+		},
+		{
+			"name": "windsurf",
+			"label": "Windsurf",
+			"path": "~/.codeium/windsurf/skills"
+		},
+		{
+			"name": "zcode",
+			"label": "ZCode",
+			"path": "~/.zcode/skills"
+		},
+		{
+			"name": "zencoder",
+			"label": "Zencoder",
+			"path": "~/.zencoder/skills"
+		},
+		{
+			"name": "neovate",
+			"label": "Neovate",
+			"path": "~/.neovate/skills"
+		},
+		{
+			"name": "pochi",
+			"label": "Pochi",
+			"path": "~/.pochi/skills"
+		},
+		{
+			"name": "adal",
+			"label": "AdaL",
+			"path": "~/.adal/skills"
+		}
+	]
+}

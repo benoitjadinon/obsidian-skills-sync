@@ -37,3 +37,37 @@ describe('contractHome', () => {
 		expect(contractHome('/opt/skills', '/h')).toBe('/opt/skills');
 	});
 });
+
+describe('generated presets', () => {
+	it('come from the generated table with our overrides applied', async () => {
+		const { PRESETS, validateAgentId } = await import('../src/core/agents');
+		expect(PRESETS.length).toBeGreaterThan(50);
+		const by = Object.fromEntries(PRESETS.map((p) => [p.id, p]));
+		expect(by['claude']).toMatchObject({ label: 'Claude Code', path: '~/.claude/skills', layout: 'flat' });
+		expect(by['gemini']?.path).toBe('~/.gemini/skills');
+		expect(by['hermes']).toMatchObject({ path: '~/.hermes/skills', layout: 'nested', archiveDir: '.archive' });
+		expect(by['agents']).toMatchObject({ label: 'Shared agents folder', path: '~/.agents/skills' });
+		expect(by['claude-code']).toBeUndefined();
+	});
+	it('have valid, unique ids and unique paths', async () => {
+		const { PRESETS, validateAgentId } = await import('../src/core/agents');
+		const ids = new Set<string>();
+		for (const p of PRESETS) {
+			expect(validateAgentId(p.id, [])).toBeNull();
+			ids.add(p.id);
+		}
+		expect(ids.size).toBe(PRESETS.length);
+		expect(new Set(PRESETS.map((p) => p.path)).size).toBe(PRESETS.length);
+	});
+	it('availablePresets hides configured folders and lists found ones first', async () => {
+		const { availablePresets } = await import('../src/core/agents');
+		const home = tmp();
+		mkdirSync(join(home, '.hermes/skills'), { recursive: true });
+		mkdirSync(join(home, '.codex/skills'), { recursive: true });
+		const configured = [{ id: 'my-codex', label: 'x', path: '~/.codex/skills', kind: 'agent' as const, layout: 'flat' as const, archiveDir: '' }];
+		const list = availablePresets(configured, home);
+		expect(list.some((p) => p.preset.path === '~/.codex/skills')).toBe(false);
+		expect(list[0]).toMatchObject({ found: true, preset: { id: 'hermes' } });
+		expect(list[1]?.found).toBe(false);
+	});
+});

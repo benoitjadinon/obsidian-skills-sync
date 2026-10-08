@@ -3,20 +3,37 @@ import { homedir } from 'os';
 import { isAbsolute, join, relative, sep } from 'path';
 import { RESERVED } from './frontmatter';
 import type { AgentConfig } from './model';
+import generated from './agentPresets.generated.json';
 
-const preset = (id: string, label: string, path: string, extra: Partial<AgentConfig> = {}): AgentConfig => ({
-	id, label, path, kind: 'agent', layout: 'flat', archiveDir: '', ...extra,
-});
+interface GeneratedPreset {
+	name: string;
+	label: string;
+	path: string;
+}
 
-export const PRESETS: AgentConfig[] = [
-	preset('claude', 'Claude Code', '~/.claude/skills'),
-	preset('codex', 'Codex', '~/.codex/skills'),
-	preset('gemini', 'Gemini CLI', '~/.gemini/skills'),
-	preset('opencode', 'OpenCode', '~/.config/opencode/skills'),
-	preset('cursor', 'Cursor', '~/.cursor/skills'),
-	preset('agents', 'Shared agents folder', '~/.agents/skills'),
-	preset('hermes', 'Hermes', '~/.hermes/skills', { layout: 'nested', archiveDir: '.archive' }),
-];
+/**
+ * Our additions on top of the generated table, keyed by skills folder. They keep the short ids
+ * existing notes already use (agent-claude, …) and describe layouts the table doesn't model.
+ */
+const OVERRIDES: Record<string, Partial<Omit<AgentConfig, 'path' | 'kind'>>> = {
+	'~/.claude/skills': { id: 'claude' },
+	'~/.gemini/skills': { id: 'gemini' },
+	'~/.hermes/skills': { id: 'hermes', layout: 'nested', archiveDir: '.archive' },
+	'~/.agents/skills': { id: 'agents', label: 'Shared agents folder' },
+};
+
+/** Known agents, generated from vercel-labs/skills by `npm run presets:update`. */
+export const PRESETS: AgentConfig[] = (generated.presets as GeneratedPreset[]).map((p) => ({
+	id: p.name,
+	label: p.label,
+	path: p.path,
+	kind: 'agent',
+	layout: 'flat',
+	archiveDir: '',
+	...OVERRIDES[p.path],
+}));
+
+export const PRESETS_SOURCE: string = generated.source;
 
 export function expandHome(p: string, home: string = homedir()): string {
 	if (p === '~') return home;
@@ -45,4 +62,12 @@ export function validateAgentId(id: string, agents: AgentConfig[]): string | nul
 	if (RESERVED.includes(id)) return `"${id}" is reserved.`;
 	if (agents.some((a) => a.id === id)) return `"${id}" already exists.`;
 	return null;
+}
+
+/** Presets whose folder isn't configured yet, those found on this machine first, then by name. */
+export function availablePresets(configured: AgentConfig[], home: string = homedir()): { preset: AgentConfig; found: boolean }[] {
+	const taken = new Set(configured.map((a) => expandHome(a.path, home)));
+	return PRESETS.filter((p) => !taken.has(expandHome(p.path, home)))
+		.map((preset) => ({ preset, found: existsSync(expandHome(preset.path, home)) }))
+		.sort((a, b) => Number(b.found) - Number(a.found) || a.preset.label.localeCompare(b.preset.label));
 }

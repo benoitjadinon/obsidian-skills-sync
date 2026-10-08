@@ -3,7 +3,9 @@ import { diffLines } from 'diff';
 import { writeConflictFiles } from '../core/conflictFiles';
 import { guardLostWindow } from './lostWindow';
 import { describeMergeError, resolveWithExternalTool } from '../core/externalMerge';
-import { conflictLabels, mergeSkill } from '../core/merge';
+import { conflictLabels, mergeSkill, textSimilarity } from '../core/merge';
+import { splitName } from '../core/sync';
+import { NameSkillModal } from './simpleModals';
 import type { SkillCopy, SyncConfig } from '../core/model';
 import { propertyDiff } from '../core/frontmatter';
 import { isBinary } from '../core/normalize';
@@ -14,6 +16,8 @@ export interface ConflictUiDeps {
 	getConfig(): SyncConfig;
 	mergeCommand(): string;
 	openPath(absPath: string): Promise<void>;
+	/** Names of the skills in the vault (to name a separate skill). */
+	skillNames(): string[];
 }
 
 const TITLES = {
@@ -93,6 +97,7 @@ export class ConflictModal extends Modal {
 			card.createDiv({ text: `Modified ${new Date(v.mtimeMs).toLocaleString()}` });
 		}
 
+		this.renderSimilarityHint();
 		const files = this.differingFiles();
 		if (files.length > 0 && !files.includes(this.file)) this.file = files[0] ?? 'SKILL.md';
 		const diffEl = createDiv({ cls: 'ash-diff' });
@@ -108,6 +113,37 @@ export class ConflictModal extends Modal {
 		this.contentEl.appendChild(diffEl);
 		this.renderDiff(diffEl);
 		this.renderActions();
+	}
+
+	/** How alike the two main versions' SKILL.md are (1 = same). */
+	private similarity(): number | null {
+		const c = this.req.conflict;
+		const left = c.ours ?? c.theirs[1];
+		const right = c.theirs[0];
+		if (!left || !right) return null;
+		return textSimilarity(textOf(left, 'SKILL.md'), textOf(right, 'SKILL.md'));
+	}
+
+	/** Below 50% similar, the versions are probably different skills that share a name: say so. */
+	private looksDifferent(): boolean {
+		const s = this.similarity();
+		return s !== null && s < 0.5;
+	}
+
+	private renderSimilarityHint(): void {
+		const s = this.similarity();
+		if (s === null || s >= 0.5) return;
+		const hint = this.contentEl.createDiv({ cls: 'ash-different-hint' });
+		hint.createEl('strong', { text: 'These look like two different skills that share a name' });
+		hint.appendText(` (${Math.round(s * 100)}% similar). Keep as separate skills to keep both.`);
+	}
+
+	/** Ask for the separate skill's name, then split. */
+	private async splitWithName(): Promise<void> {
+		const t = this.req.conflict.theirs[0];
+		const suggested = t ? splitName(this.req.group.name, t.owner) : `${this.req.group.name}-2`;
+		const name = await new NameSkillModal(this.app, suggested, this.deps.skillNames()).openAndWait();
+		if (name) this.finish({ kind: 'split', name });
 	}
 
 	private differingFiles(): string[] {
@@ -217,12 +253,14 @@ export class ConflictModal extends Modal {
 				const t = c.theirs[0];
 				if (ours) add(`Remove from ${this.label(c.agent ?? '')}`, () => this.finish({ kind: 'apply', files: ours.files }), true);
 				if (t) add('Keep its version in the vault, then remove', () => this.finish({ kind: 'apply', files: t.files }));
+				if (t) add('Keep as separate skills…', () => this.splitWithName());
 				break;
 			}
 			case 'path': {
 				const t = c.theirs[0];
 				add(`Use new location "${t?.relPath || '(root)'}"`, () => this.finish({ kind: 'adoptPath' }), true);
 				add(`Move back to "${this.req.group.vault?.meta.path || '(root)'}"`, () => this.finish({ kind: 'keepPath' }));
+				add('Keep as separate skills…', () => this.splitWithName());
 				break;
 			}
 			default: {
@@ -232,7 +270,7 @@ export class ConflictModal extends Modal {
 				for (const t of c.theirs) add(`Keep ${this.holders(t)}`, () => this.finish({ kind: 'apply', files: t.files }));
 				if (ours && theirs) {
 					const m = mergeSkill(ours, c.base, theirs, conflictLabels(c, this.req.labels));
-					if (m.clean) add('Apply clean merge', () => this.finish({ kind: 'apply', files: m.files }), true);
+					if (m.clean) add('Apply clean merge', () => this.finish({ kind: 'apply', files: m.files }), !this.looksDifferent());
 					add('Edit in Obsidian', async () => {
 						const paths = await writeConflictFiles(this.deps.getConfig(), this.req);
 						if (paths.length === 0) return void new Notice('Only binary files conflict; pick a version instead.');
@@ -255,7 +293,7 @@ export class ConflictModal extends Modal {
 					}
 				}
 				// Same name, but maybe a different skill: keep both.
-				if (c.kind === 'diverged' || c.kind === 'external') add('Keep as separate skills', () => this.finish({ kind: 'split' }));
+				if (c.kind === 'diverged' || c.kind === 'external') add('Keep as separate skills…', () => this.splitWithName(), this.looksDifferent());
 			}
 		}
 		add('Skip', () => this.finish({ kind: 'skip' }));

@@ -212,3 +212,10 @@ input.ash-invalid {
 	color: var(--text-faint);
 	font-style: italic;
 }
+.ash-different-hint {
+	padding: var(--size-4-2) var(--size-4-3);
+	margin-bottom: var(--size-4-3);
+	border-radius: var(--radius-s);
+	border: 1px solid var(--color-orange);
+	background-color: rgba(var(--color-orange-rgb), 0.1);
+}

@@ -153,3 +153,13 @@ describe('category folders', () => {
 		expect(as).toEqual([expect.objectContaining({ type: 'setPath', path: 'productivity' })]);
 	});
 });
+
+describe('category question only for the same skill', () => {
+	it('asks about the category when contents match, raises a content conflict otherwise', () => {
+		const agents = [ag('hermes', { layout: 'nested' })];
+		const same = planGroup(g({ hermes: true }, 'k', 0, [c('hermes', 'k', 0, { relPath: 'tools' })], { path: 'github' }), cfg(agents));
+		expect(same).toEqual([expect.objectContaining({ type: 'conflict', conflict: expect.objectContaining({ kind: 'path' }) })]);
+		const other = planGroup(g({ hermes: true }, 'k', 0, [c('hermes', 'zzz', 5, { relPath: 'tools' })], { path: 'github' }), cfg(agents));
+		expect(other.map((a) => (a.type === 'conflict' ? a.conflict.kind : a.type))).toEqual(['diverged']);
+	});
+});

@@ -108,7 +108,7 @@ The conflict dialog lists every version (the vault, the agents, and the common o
 - **Apply clean merge**, offered when the changes don't overlap.
 - **Edit in Obsidian**: the plugin writes `SKILL.conflict.md` with git-style markers (`<<<<<<< vault`, `||||||| base`, `=======`, `>>>>>>> agent`). Remove the markers and save, and the result is applied and synced.
 - **Open merge tool**, if you chose one in settings.
-- **Keep as separate skills**, when the versions are really different skills that happen to share a name.
+- **Keep as separate skills…**, when the versions are really different skills that happen to share a name. You name the new note (suggested: the skill name with the agent as a suffix, for example `computer-use-hermes`); the agent keeps its folder name, and both skills stay apart from then on. When the versions are less than 50% alike, the dialog says they look like different skills and suggests this option.
 - **Skip**, to decide later.
 
 The merge tool is optional. Pick one in **Settings → Merge tool**, or enter any command using the placeholders `{ours}`, `{base}`, `{theirs}` and `{result}`:

@@ -23,7 +23,8 @@ export type Resolution =
 	| { kind: 'apply'; files: Map<string, Uint8Array> }
 	| { kind: 'skip' }
 	| { kind: 'pending' }
-	| { kind: 'split' }
+	/** The agents' versions become separate skills (name: for a single version, the note's name). */
+	| { kind: 'split'; name?: string }
 	| { kind: 'adoptPath' }
 	| { kind: 'keepPath' };
 
@@ -93,7 +94,7 @@ export async function applyResolution(ex: Executor, g: SkillGroup, c: Conflict, 
 		case 'split': {
 			const taken = new Set((await scanVault(cfg)).map((v) => v.name));
 			for (const t of c.theirs) {
-				const name = uniqueName(`${t.owner}-${g.name}`, taken);
+				const name = uniqueName(r.name && c.theirs.length === 1 ? r.name : splitName(g.name, t.owner), taken);
 				taken.add(name);
 				const states = importStates(cfg, (c.owners[t.key] ?? []).filter((o) => o !== VAULT));
 				await ex.importSkill(name, t.files, states, t.relPath, t.folder, sourcesOf(c.owners[t.key] ?? [], cfg));
@@ -270,4 +271,9 @@ export async function resetUndecided(cfg: SyncConfig, agentId: string): Promise<
 		cleared.push(v.name);
 	}
 	return cleared;
+}
+
+/** Default name for a version kept as a separate skill: the skill name with the agent as a suffix. */
+export function splitName(skill: string, owner: string): string {
+	return `${skill}-${owner}`;
 }

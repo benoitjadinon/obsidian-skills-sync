@@ -137,12 +137,18 @@ export function planGroup(g: SkillGroup, cfg: SyncConfig): Action[] {
 		} else if (state === true && !active) {
 			actions.push(archived ? { type: 'unarchive', group: g, copy: archived } : { type: 'push', group: g, agent: a.id });
 		} else if (state === true && active) {
-			consensus.push(active);
 			if (a.layout === 'nested' && active.relPath !== v.meta.path) {
-				// No category recorded yet: take the agent's. A different recorded one: ask.
+				if (active.key !== v.copy.key && v.meta.path) {
+					// Another category *and* other content: likely a different skill sharing the name.
+					// Ask (with "Keep as separate skills"); never push over it.
+					actions.push({ type: 'conflict', group: g, conflict: { kind: 'diverged', ours: v.copy, theirs: [active], owners: ownersOf([v.copy, active]), agent: a.id } });
+					continue;
+				}
+				// No category recorded yet: take the agent's. Same content elsewhere: ask about the category.
 				if (!v.meta.path) actions.push({ type: 'setPath', group: g, path: active.relPath });
-				else actions.push({ type: 'conflict', group: g, conflict: { kind: 'path', theirs: [active], owners: {}, agent: a.id } });
+				else actions.push({ type: 'conflict', group: g, conflict: { kind: 'path', theirs: [active], owners: ownersOf([active]), agent: a.id } });
 			}
+			consensus.push(active);
 		}
 	}
 

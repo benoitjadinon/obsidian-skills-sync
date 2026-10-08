@@ -83,6 +83,7 @@ export default class AgentSkillsHub extends Plugin {
 			getConfig: () => this.config(),
 			mergeCommand: () => this.settings.mergeCommand,
 			openPath: (p) => this.openAbsolute(p),
+			skillNames: () => this.skillNames(),
 			trashVaultSkill: async (name) => {
 				// Obsidian's own deletion: follows Settings → Files and links → Deleted files.
 				const folder = this.app.vault.getFolderByPath(normalizePath(`${this.settings.hubFolder}/${name}`));

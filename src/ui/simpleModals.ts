@@ -140,3 +140,55 @@ export class RemoveAgentModal extends Modal {
 		this.done(this.result);
 	}
 }
+
+/** Name a skill kept separately (prefilled; must be a free, valid skill name). */
+export class NameSkillModal extends Modal {
+	private name: string;
+	private result: string | null = null;
+	private done: (name: string | null) => void = () => undefined;
+
+	constructor(app: App, suggested: string, private readonly existing: string[]) {
+		super(app);
+		this.name = suggested;
+	}
+
+	openAndWait(): Promise<string | null> {
+		return new Promise((resolve) => {
+			this.done = resolve;
+			this.open();
+		});
+	}
+
+	onOpen(): void {
+		this.setTitle('Keep as a separate skill');
+		this.contentEl.createEl('p', {
+			cls: 'setting-item-description',
+			text: 'The agent\'s version becomes its own skill note under this name. The agent keeps its folder name, so both skills stay apart from now on.',
+		});
+		let save: ButtonComponent | undefined;
+		const field = new Setting(this.contentEl).setName('Name');
+		field.addText((t) => {
+			t.setValue(this.name).onChange((v) => {
+				this.name = v.trim();
+				const error = validateSkillName(this.name, this.existing);
+				showFieldError(field, t, error);
+				save?.setDisabled(error !== null);
+			});
+			window.setTimeout(() => t.inputEl.select(), 0);
+		});
+		new Setting(this.contentEl)
+			.addButton((b) => b.setButtonText('Cancel').onClick(() => this.close()))
+			.addButton((b) => {
+				save = b;
+				b.setButtonText('Keep separately').setCta().setDisabled(validateSkillName(this.name, this.existing) !== null).onClick(() => {
+					this.result = this.name;
+					this.close();
+				});
+			});
+	}
+
+	onClose(): void {
+		this.contentEl.empty();
+		this.done(this.result);
+	}
+}

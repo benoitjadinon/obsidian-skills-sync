@@ -139,3 +139,28 @@ describe('tick the skills an existing agent already has', () => {
 		expect(meta('c').states.hermes).toBe(false); // an explicit choice is kept
 	});
 });
+
+describe('keep as separate skills, with a chosen name', () => {
+	it('imports the agent version under the given name, keeping its folder and category', async () => {
+		const w = hermesWorld();
+		const orca = skillMd('computer-use', '# Orca computer use\n');
+		const official = skillMd('computer-use', '# Hermes official computer use\n'.repeat(20));
+		// Hermes was just added: no agent-hermes property yet.
+		w.put('vault', { 'computer-use/SKILL.md': w.vaultMd(orca, { claude: true }).replace('agent-hermes:\n', '') }, T0);
+		w.put('claude', { 'computer-use/SKILL.md': orca }, T0);
+		w.put('hermes', { 'autonomous-ai-agents/computer-use/SKILL.md': official }, T1);
+		const r = new StubResolver((req) => (req.conflict.theirs[0]?.owner === 'hermes' ? { kind: 'split', name: 'computer-use-hermes' } : { kind: 'skip' }));
+		await runSync(w.cfg, r); // hermes adopted: ticked + conflict (copy differs) → split
+		const meta = readMeta(w.tree('vault')['computer-use-hermes/SKILL.md'] ?? '', 'agent-');
+		expect(meta.states.hermes).toBe(true);
+		expect(meta.folder).toBe('computer-use');
+		expect(meta.path).toBe('autonomous-ai-agents');
+		expect(readMeta(w.tree('vault')['computer-use/SKILL.md'] ?? '', 'agent-').states.hermes).toBeNull();
+		// Stable afterwards: each copy pairs with its own note, nothing is overwritten.
+		const again = new StubResolver();
+		await runSync(w.cfg, again);
+		expect(again.requests).toHaveLength(0);
+		expect(w.tree('hermes')['autonomous-ai-agents/computer-use/SKILL.md']).toBe(official);
+		expect(w.tree('claude')['computer-use/SKILL.md']).toBe(orca);
+	});
+});

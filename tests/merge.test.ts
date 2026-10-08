@@ -51,3 +51,14 @@ describe('mergeSkill', () => {
 		expect(m.conflicted).toEqual(['i.png']);
 	});
 });
+
+describe('textSimilarity', () => {
+	it('is 1 for equal texts, low for unrelated ones', async () => {
+		const { textSimilarity } = await import('../src/core/merge');
+		const a = Array.from({ length: 40 }, (_, i) => `line ${i}`).join('\n');
+		expect(textSimilarity(a, a)).toBe(1);
+		expect(textSimilarity(a, a.replace('line 3', 'LINE 3'))).toBeGreaterThan(0.9);
+		expect(textSimilarity(a, Array.from({ length: 300 }, (_, i) => `other ${i}`).join('\n'))).toBeLessThan(0.1);
+		expect(textSimilarity('', '')).toBe(1);
+	});
+});

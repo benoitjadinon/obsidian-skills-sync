@@ -1,3 +1,4 @@
+import { diffLines } from 'diff';
 import { mergeDiff3 } from 'node-diff3';
 import type { Conflict } from './engine';
 import type { SkillCopy } from './model';
@@ -78,4 +79,18 @@ export function conflictLabels(c: Conflict, names: Record<string, string>): Merg
 		base: c.base ? `base (${names[c.base.owner] ?? c.base.owner}, ${fmt(c.base.mtimeMs)})` : 'base',
 		theirs: t ? `${names[t.owner] ?? t.owner} (${fmt(t.mtimeMs)})` : 'agent',
 	};
+}
+
+/**
+ * How alike two texts are, from 0 (nothing in common) to 1 (same lines), ignoring formatting noise.
+ * Used to warn when two "versions" are probably different skills sharing a name.
+ */
+export function textSimilarity(a: string, b: string): number {
+	const na = normalizeText(a);
+	const nb = normalizeText(b);
+	if (na === nb) return 1;
+	const total = (na ? na.split('\n').length : 0) + (nb ? nb.split('\n').length : 0);
+	if (total === 0) return 1;
+	const same = diffLines(na, nb).filter((p) => !p.added && !p.removed).reduce((n, p) => n + (p.count ?? 0), 0);
+	return (2 * same) / total;
 }

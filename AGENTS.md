@@ -162,6 +162,7 @@ npm run build
 - `tests/watcher.test.ts` tests debounce and pause with manual timers, and real `fs.watch` only loosely (at least one change noticed). Keep timing out of assertions.
 - `npm run build` runs `tsc` (`moduleResolution: bundler`, which `node-diff3` types need) and esbuild. `npm run lint` must report 0 errors; the remaining warnings are known.
 - Manual check: `docs/e2e-checklist.md`, in a scratch vault whose `data.json` is pre-seeded with `initialized: true` and `agents: []`, so the plugin doesn't auto-detect real agent folders.
+- Installing a dev build into a vault: bump the patch version first, `npm version patch --no-git-tag-version` (no tag: pushing a tag runs the release workflow), so every computer can tell builds apart. Files copied from outside Obsidian aren't noticed by Obsidian Sync until a rescan: restart Obsidian, or rewrite the files through `app.vault.adapter`.
 - Manual install: copy `main.js`, `manifest.json` and `styles.css` to `<Vault>/.obsidian/plugins/skills-sync/`, then reload Obsidian and enable the plugin.
 
 ## Commands & settings

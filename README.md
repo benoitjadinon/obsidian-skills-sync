@@ -1,12 +1,30 @@
 # Skills Sync
 
-Keep all your AI agent skills in one Obsidian folder, decide in a table which agent gets which skill, and let the plugin keep real copies in sync with Claude Code, Codex, Hermes, Gemini CLI, OpenCode, Cursor and about 60 other agents.
+**Your AI agent skills are a Base.** Every skill is a Markdown note in your vault, every agent is a checkbox column, and Skills Sync keeps real copies in sync with Claude Code, Codex, Hermes, Gemini CLI, OpenCode, Cursor and about 60 other agents.
 
 [Agent skills](https://docs.anthropic.com/en/docs/claude-code/skills) are folders with a `SKILL.md` file (plus optional `scripts/`, `references/`, …) that coding agents load from their own skills folder, such as `~/.claude/skills` or `~/.codex/skills`. Once you use several agents, the same skill ends up copied in several places, edited in some and updated by tools in others. Skills Sync gives them one home in your vault and keeps every agent up to date.
 
+## Why Obsidian, why a Base
+
+**Skills are Markdown, and Obsidian is a great place to write Markdown.** A `SKILL.md` is a note like any other, so you write and refine your skills with everything you already use: live preview, the properties editor for `name` and `description`, links between skills and to the projects that use them, backlinks, the graph, search, templates and your favorite plugins.
+
+**A Base is the skills manager.** [Bases](https://help.obsidian.md/bases) are Obsidian's built-in database views, so there is no custom screen to learn. Skills Sync gives you a table with one row per skill and one checkbox column per agent: you see at a glance which agent has which skill, and changing that is a click.
+
+| Skill | Description | Claude Code | Codex | Hermes | Gemini CLI |
+|---|---|:---:|:---:|:---:|:---:|
+| brainstorming | Turn ideas into designs… | ☑ | ☑ | ☐ | ☑ |
+| github-auth | Authenticate with GitHub… | ☑ | ☐ | ☑ | |
+| obsidian-bases | Create and edit Bases… | ☑ | ☑ | | |
+
+Because it's a regular Base, it's also yours to shape:
+
+- **Add your own columns.** Ratings, tags, "last reviewed", or a formula. They're just properties, and they never reach your agents.
+- **Make your own views.** Group by agent category, filter "shared with Hermes only", show cards instead of a table, or embed a view in a project note.
+- **Sort, filter and search** with the tools Obsidian already gives you.
+
 ## Features
 
-- **One table for every skill and agent.** Skills are notes in a vault folder, and a [Base](https://help.obsidian.md/bases) lists them with one checkbox column per agent. Tick a box to share a skill with that agent, untick it to remove it there. Filtering, sorting and grouping come from Bases.
+- **One table for every skill and agent.** A ready-made Base lists your skills with one checkbox column per agent, plus views for undecided skills, unassigned skills and conflicts. Tick a box to share a skill with that agent, untick it to remove it there.
 - **Three states per agent.** Ticked: shared. Unticked: removed from that agent (or moved to its archive). Empty: undecided, so the plugin never touches that agent's copy. New agents and new skills start undecided, so adding an agent never floods it with skills.
 - **Real copies, no symlinks.** Each agent gets a plain folder it can read like any other skill. Existing symlinked setups are migrated to copies, after you confirm.
 - **Two-way sync without a database.** Edits in Obsidian are pushed to the ticked agents. Updates made by other tools inside an agent's folder (for example an agent updating its own bundled skills) are detected and offered for import into the vault and on to the other agents. All state lives in each skill's frontmatter.

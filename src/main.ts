@@ -1,12 +1,12 @@
 import { FileSystemAdapter, normalizePath, Notice, Plugin, TAbstractFile, TFile, TFolder } from 'obsidian';
 import { join, relative, sep } from 'path';
 import { detectPresets, expandHome, inferPreset } from './core/agents';
-import { defaultBase, ensureAgentColumns } from './core/base';
+import { defaultBase, ensureAgentColumns, removeAgentColumn } from './core/base';
 import { resolveConflictFiles } from './core/conflictFiles';
 import { hasMarkers } from './core/merge';
 import type { SyncConfig } from './core/model';
 import { isConflictFile } from './core/scan';
-import { createSkill, deleteEverywhere, fillMissingSources, findAgentCopies, removeFromAgents, runSync } from './core/sync';
+import { createSkill, deleteEverywhere, removeAgentFromNotes, fillMissingSources, findAgentCopies, removeFromAgents, runSync } from './core/sync';
 import { Watcher } from './core/watcher';
 import { DEFAULT_SETTINGS, type HubSettings, HubSettingTab } from './settings';
 import { ObsidianResolver } from './ui/resolver';
@@ -284,6 +284,20 @@ export default class AgentSkillsHub extends Plugin {
 		}
 		this.registerPropertyTypes();
 		if (open && file instanceof TFile) await this.app.workspace.getLeaf(false).openFile(file);
+	}
+
+	/** After an agent was removed from settings: delete its property from every skill note and its base column. */
+	async removeAgentProperty(agentId: string): Promise<void> {
+		await this.exclusive(async () => {
+			const changed = await removeAgentFromNotes(this.config(), agentId);
+			const base = this.app.vault.getAbstractFileByPath(normalizePath(this.settings.basePath));
+			if (base instanceof TFile) {
+				const s = this.settings;
+				const remaining = { hubFolder: normalizePath(s.hubFolder), prefix: s.propPrefix, agents: s.agents.map((a) => ({ id: a.id, label: a.label })) };
+				await this.app.vault.process(base, (t) => removeAgentColumn(t, remaining, agentId));
+			}
+			new Notice(`Removed ${this.settings.propPrefix}${agentId} from ${changed.length} skill note${changed.length === 1 ? '' : 's'}.`);
+		});
 	}
 
 	async onAgentsChanged(): Promise<void> {

@@ -64,3 +64,22 @@ export function ensureAgentColumns(text: string, o: BaseOptions): string {
 	}
 	return doc.toString();
 }
+
+/** Remove an agent's property and columns from a base; refresh the managed views for the remaining agents. */
+export function removeAgentColumn(text: string, remaining: BaseOptions, agentId: string): string {
+	const key = col(remaining, agentId);
+	const doc = parseDocument(text);
+	if (doc.hasIn(['properties', key])) doc.deleteIn(['properties', key]);
+	const views = doc.get('views');
+	if (isSeq(views)) {
+		for (const view of views.items) {
+			if (!isMap(view)) continue;
+			const order = view.get('order');
+			if (isSeq(order)) order.items = order.items.filter((i) => String(isScalar(i) ? i.value : i) !== key);
+			const name = view.get('name');
+			if (name === VIEW_UNDECIDED) view.set('filters', doc.createNode(undecided(remaining)));
+			if (name === VIEW_UNASSIGNED) view.set('filters', doc.createNode(unassigned(remaining)));
+		}
+	}
+	return doc.toString();
+}

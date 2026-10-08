@@ -9,7 +9,7 @@ import { showFieldError } from './ui/fieldErrors';
 import { addFolderBrowse } from './ui/folderPicker';
 import { MERGE_TOOL_PRESETS } from './core/externalMerge';
 import { validateBasePath, validateHubFolder, validateMergeCommand, validatePrefix } from './core/validate';
-import { ConfirmModal } from './ui/simpleModals';
+import { RemoveAgentModal } from './ui/simpleModals';
 
 export interface HubSettings {
 	hubFolder: string;
@@ -170,14 +170,11 @@ export class HubSettingTab extends PluginSettingTab {
 				.setDesc(`${a.path}${layout}${archive} · ${s.propPrefix}${a.id}${missing}`)
 				.addExtraButton((b) => b.setIcon('pencil').setTooltip('Edit').onClick(() => this.openForm(kind, a)))
 				.addExtraButton((b) => b.setIcon('trash').setTooltip('Remove').onClick(async () => {
-					const ok = await new ConfirmModal(
-						this.app,
-						`Remove ${a.label}?`,
-						`Skills Sync stops syncing ${a.path}. Its skill files and the ${s.propPrefix}${a.id} properties in your notes are kept.`,
-						'Remove',
-					).openAndWait();
-					if (!ok) return;
+					const r = await new RemoveAgentModal(this.app, a.label, a.path, `${s.propPrefix}${a.id}`).openAndWait();
+					if (!r.confirmed) return;
 					s.agents = s.agents.filter((x) => x !== a);
+					await this.plugin.saveSettings();
+					if (r.removeProperties) await this.plugin.removeAgentProperty(a.id);
 					await this.changed();
 				}));
 		}

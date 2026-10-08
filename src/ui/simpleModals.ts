@@ -92,3 +92,41 @@ export class NewSkillModal extends Modal {
 		this.contentEl.empty();
 	}
 }
+
+/** Confirm removing an agent, with an opt-in to also clean its property out of the skill notes. */
+export class RemoveAgentModal extends Modal {
+	private result = { confirmed: false, removeProperties: false };
+	private removeProperties = false;
+	private done: (r: { confirmed: boolean; removeProperties: boolean }) => void = () => undefined;
+
+	constructor(app: App, private readonly label: string, private readonly path: string, private readonly property: string) {
+		super(app);
+	}
+
+	openAndWait(): Promise<{ confirmed: boolean; removeProperties: boolean }> {
+		return new Promise((resolve) => {
+			this.done = resolve;
+			this.open();
+		});
+	}
+
+	onOpen(): void {
+		this.setTitle(`Remove ${this.label}?`);
+		this.contentEl.createEl('p', { text: `Skills Sync stops syncing ${this.path}. The skill files in that folder are never touched.` });
+		new Setting(this.contentEl)
+			.setName(`Also remove the ${this.property} property from all skill notes`)
+			.setDesc('Also removes its column from the skills base. Leave off to keep your choices, for example to add the agent back later.')
+			.addToggle((t) => t.setValue(false).onChange((v) => (this.removeProperties = v)));
+		new Setting(this.contentEl)
+			.addButton((b) => b.setButtonText('Cancel').onClick(() => this.close()))
+			.addButton((b) => b.setButtonText('Remove').setWarning().onClick(() => {
+				this.result = { confirmed: true, removeProperties: this.removeProperties };
+				this.close();
+			}));
+	}
+
+	onClose(): void {
+		this.contentEl.empty();
+		this.done(this.result);
+	}
+}

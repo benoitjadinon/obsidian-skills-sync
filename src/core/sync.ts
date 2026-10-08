@@ -3,7 +3,7 @@ import { join } from 'path';
 import type { Action, Conflict } from './engine';
 import { importPath, planGroup, sourcesOf } from './engine';
 import { Executor } from './executor';
-import { newSkillText } from './frontmatter';
+import { newSkillText, setMeta } from './frontmatter';
 import { groupSkills, uniqueName } from './group';
 import { findSymlinks, migrate } from './migrate';
 import type { AgentState, SkillCopy, SkillGroup, SyncConfig } from './model';
@@ -198,6 +198,24 @@ export async function fillMissingSources(cfg: SyncConfig): Promise<string[]> {
 		if (!g.vault || g.vault.meta.sources !== null) continue;
 		await ex.patchMeta(g, { sources: sourcesOf(g.copies.map((c) => c.owner), live) });
 		changed.push(g.name);
+	}
+	return changed;
+}
+
+/**
+ * Delete the `<prefix><agentId>` property from every skill note (after the agent was removed from
+ * settings; `cfg` lists the remaining agents). Agent folders are not touched. Returns changed skills.
+ */
+export async function removeAgentFromNotes(cfg: SyncConfig, agentId: string): Promise<string[]> {
+	const order = cfg.agents.map((a) => a.id).filter((id) => id !== agentId);
+	const changed: string[] = [];
+	for (const v of await scanVault(cfg)) {
+		if (!(agentId in v.meta.states)) continue;
+		const states = { ...v.meta.states };
+		delete states[agentId];
+		const raw = setMeta(v.rawSkillMd, { ...v.meta, states }, cfg.prefix, order);
+		await fsp.writeFile(join(v.copy.dir, 'SKILL.md'), raw);
+		changed.push(v.name);
 	}
 	return changed;
 }

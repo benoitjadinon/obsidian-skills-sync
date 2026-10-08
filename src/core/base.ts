@@ -17,10 +17,11 @@ const undecided = (o: BaseOptions) => ({ or: o.agents.map((a) => `${ref(o, a.id)
 const unassigned = (o: BaseOptions) => ({ and: o.agents.map((a) => `${ref(o, a.id)} != true`) });
 
 export function defaultBase(o: BaseOptions): string {
-	const order = ['formula.skill', 'description', ...o.agents.map((a) => col(o, a.id)), `note.${o.prefix}path`];
+	const order = ['formula.skill', 'description', ...o.agents.map((a) => col(o, a.id)), col(o, 'source'), col(o, 'path')];
 	const properties: Record<string, { displayName: string }> = {
 		'formula.skill': { displayName: 'Skill' },
-		[`note.${o.prefix}path`]: { displayName: 'Path' },
+		[col(o, 'source')]: { displayName: 'Source' },
+		[col(o, 'path')]: { displayName: 'Path' },
 	};
 	for (const a of o.agents) properties[col(o, a.id)] = { displayName: a.label };
 	return stringify({
@@ -36,11 +37,12 @@ export function defaultBase(o: BaseOptions): string {
 	});
 }
 
-/** Add missing agent properties/columns to an existing base; refresh the plugin-managed views' filters. */
+/** Add missing agent and Source properties/columns to an existing base; refresh the plugin-managed views' filters. */
 export function ensureAgentColumns(text: string, o: BaseOptions): string {
 	const doc = parseDocument(text);
-	for (const a of o.agents) {
-		if (!doc.hasIn(['properties', col(o, a.id)])) doc.setIn(['properties', col(o, a.id)], doc.createNode({ displayName: a.label }));
+	const columns = [...o.agents.map((a) => ({ key: col(o, a.id), label: a.label })), { key: col(o, 'source'), label: 'Source' }];
+	for (const c of columns) {
+		if (!doc.hasIn(['properties', c.key])) doc.setIn(['properties', c.key], doc.createNode({ displayName: c.label }));
 	}
 	const views = doc.get('views');
 	if (isSeq(views)) {
@@ -53,7 +55,7 @@ export function ensureAgentColumns(text: string, o: BaseOptions): string {
 			}
 			if (isSeq(order)) {
 				const have = new Set(order.items.map((i) => String(isScalar(i) ? i.value : i)));
-				for (const a of o.agents) if (!have.has(col(o, a.id))) order.add(doc.createNode(col(o, a.id)));
+				for (const c of columns) if (!have.has(c.key)) order.add(doc.createNode(c.key));
 			}
 			const name = view.get('name');
 			if (name === VIEW_UNDECIDED) view.set('filters', doc.createNode(undecided(o)));

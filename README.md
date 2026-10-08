@@ -8,6 +8,7 @@ Agent Skills Hub keeps your agent skills (folders with a `SKILL.md` plus optiona
 |---|---|
 | `agent-<id>` | Tri-state per agent. `true`: share the skill with that agent. `false`: don't share; the plugin removes (or archives) the agent's copy. Empty: undecided; the plugin never touches that agent's copy. |
 | `agent-skill-keys` | The skill's own frontmatter keys, in original order. Only these keys are written to agents' `SKILL.md`; an empty list means no frontmatter block. |
+| `agent-source` | The agents the skill was imported from (every agent holding a copy at import time, archived copies included). Written once on import, never changed by sync, so you can correct it by hand. Skills created with **New skill** start with `[]`. |
 | `agent-path` | Category path for agents with category subfolders (for example Hermes: `github` → `~/.hermes/skills/github/<skill>/`). Flat agents ignore it. |
 | `agent-folder` | Folder name to export under, when it differs from the vault folder (two different skills with the same name in different categories). |
 | `agent-conflict` | Set to `true` when a conflict was skipped, so the base's **Conflicts** view lists it. |
@@ -17,15 +18,27 @@ Agent Skills Hub keeps your agent skills (folders with a `SKILL.md` plus optiona
 1. Install the plugin: copy `main.js`, `manifest.json` and `styles.css` to `<vault>/.obsidian/plugins/agent-skills-hub/`, then enable it in **Settings → Community plugins**. The plugin is desktop only.
 2. In **Settings → Agent Skills Hub**, set the **Skills folder** (default `Skills`). Each skill is a subfolder of it.
 3. Check the detected agents. On first start, every preset whose folder exists (Claude Code, Codex, Gemini CLI, OpenCode, Cursor, `~/.agents`, Hermes) is added. Add other presets, custom agents or project skills folders by path.
-4. Run the command **Create or update the skills base**. It creates the base (default `Skills/Skills.base`) or adds the missing agent columns to an existing one.
+4. Run the command **Create or update the skills base**. It creates the base (default `Skills/Skills.base`) or adds the missing agent and **Source** columns to an existing one.
+5. Upgrading from a version without `agent-source`: run **Fill in missing skill sources** once. Notes without the property get the agents that currently hold a copy (not necessarily the true origin; edit it if you remember better). Notes that already have it are left alone.
 
 Sync runs on startup, when an agent folder changes, and shortly after you edit a skill in the vault (turn off **Sync automatically** to only sync with **Sync now** or the ribbon icon).
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| **Sync now** (also the ribbon icon) | Runs a full sync. |
+| **New skill** | Creates `<skills folder>/<name>/SKILL.md` with every agent undecided. Nothing is pushed until you tick agents. |
+| **Create or update the skills base** | Creates the base, or adds missing agent and Source columns to it. |
+| **Fill in missing skill sources** | Backfills `agent-source` on notes that don't have it yet. |
+| **Delete current skill everywhere** | Deletes the skill from the vault and from every agent folder (asks first). |
+| **Resolve conflict for current skill** | Applies edited `*.conflict*` files once no markers are left. |
 
 ## How sync decides
 
 For each skill name (the union of vault skills and agent copies), only agents ticked `true` whose copy exists count as the "consensus". Agents left empty are ignored completely.
 
-1. **New in an agent**: a skill found in an agent but not in the vault is imported. Agents holding it are ticked, the others stay empty. If several agents hold different versions, you pick one.
+1. **New in an agent**: a skill found in an agent but not in the vault is imported. Agents holding it are ticked (archived copies unticked), the others stay empty, and all of them are recorded in `agent-source`. If several agents hold different versions, you pick one.
 2. **Ticked but missing**: an agent ticked `true` without a copy gets one.
 3. **Unticked**: an agent set to `false` that still has a copy loses it, if it matches the vault. If it differs, you are asked first (keep the vault version, or pull the agent's version into the vault, then remove). Agents with an archive folder get the copy moved to the archive instead.
 4. **Everything equal**: nothing happens.

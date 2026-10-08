@@ -14,7 +14,7 @@ export interface Conflict {
 }
 
 export type Action =
-	| { type: 'import'; group: SkillGroup; from: SkillCopy; states: Record<string, AgentState>; path: string; folder: string }
+	| { type: 'import'; group: SkillGroup; from: SkillCopy; states: Record<string, AgentState>; path: string; folder: string; sources: string[] }
 	| { type: 'push'; group: SkillGroup; agent: string }
 	| { type: 'pull'; group: SkillGroup; from: SkillCopy }
 	| { type: 'delete'; group: SkillGroup; copy: SkillCopy }
@@ -42,6 +42,12 @@ function ownersOf(cs: SkillCopy[]): Record<string, string[]> {
 	return o;
 }
 
+/** Owners holding any copy (active or archived), in configured agent order. */
+export function sourcesOf(owners: Iterable<string>, cfg: SyncConfig): string[] {
+	const held = new Set(owners);
+	return cfg.agents.map((a) => a.id).filter((id) => held.has(id));
+}
+
 export function importPath(g: SkillGroup, pool: SkillCopy[], cfg: SyncConfig): string {
 	if (g.newPath !== undefined) return g.newPath;
 	const nested = new Set(cfg.agents.filter((a) => a.layout === 'nested').map((a) => a.id));
@@ -61,7 +67,8 @@ function planImport(g: SkillGroup, copies: SkillCopy[], cfg: SyncConfig): Action
 	const states: Record<string, AgentState> = Object.fromEntries(cfg.agents.map((a) => [a.id, null]));
 	for (const c of archived) states[c.owner] = false;
 	for (const c of active) states[c.owner] = true;
-	return [{ type: 'import', group: g, from, states, path: importPath(g, pool, cfg), folder: g.newFolder ?? '' }];
+	const sources = sourcesOf(copies.map((c) => c.owner), cfg);
+	return [{ type: 'import', group: g, from, states, path: importPath(g, pool, cfg), folder: g.newFolder ?? '', sources }];
 }
 
 export function planGroup(g: SkillGroup, cfg: SyncConfig): Action[] {

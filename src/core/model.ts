@@ -27,6 +27,8 @@ export interface PluginMeta {
 	path: string;
 	folder: string;
 	conflict: boolean;
+	/** Agents the skill was first imported from; null = property absent. Never changed by sync. */
+	sources: string[] | null;
 }
 
 export const VAULT = 'vault';

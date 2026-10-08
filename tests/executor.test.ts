@@ -57,9 +57,9 @@ describe('Executor.syncDir', () => {
 describe('Executor.importSkill', () => {
 	it('writes the vault note with plugin keys and other files untouched', async () => {
 		const { cfg } = setup();
-		await new Executor(cfg).importSkill('x', files({ 'SKILL.md': '---\nname: x\n---\nb\n', 'ref.md': 'r' }), { claude: true }, '', '');
+		await new Executor(cfg).importSkill('x', files({ 'SKILL.md': '---\nname: x\n---\nb\n', 'ref.md': 'r' }), { claude: true }, '', '', ['claude']);
 		expect(tree(join(cfg.hubDir, 'x'))).toEqual({
-			'SKILL.md': '---\nname: x\nagent-skill-keys: [name]\nagent-claude: true\n---\nb\n',
+			'SKILL.md': '---\nname: x\nagent-skill-keys: [name]\nagent-source: [claude]\nagent-claude: true\n---\nb\n',
 			'ref.md': 'r',
 		});
 	});

@@ -1,10 +1,48 @@
-# Obsidian community plugin
+# Agent Skills Hub (Obsidian community plugin)
 
 ## Project overview
 
-- Target: Obsidian Community Plugin (TypeScript → bundled JavaScript).
-- Entry point: `src/main.ts` compiled to `main.js` and loaded by Obsidian.
-- Required release artifacts: `main.js`, `manifest.json`, and optional `styles.css`.
+- Plugin id `agent-skills-hub`, desktop only (`isDesktopOnly: true`, uses Node `fs`), `minAppVersion` 1.9.0.
+- Entry point: `src/main.ts` compiled to `main.js`. Release artifacts: `main.js`, `manifest.json`, `styles.css`.
+- Purpose: keep AI agent skills (folders with `SKILL.md`) in one vault folder, list them in a `.base` with one tri-state checkbox column per agent, and sync real copies (never symlinks) to and from each agent's skills folder. User-facing behavior is documented in `README.md`; the design is in `docs/superpowers/specs/2026-10-06-agent-skills-hub-design.md` and the build plan in `docs/superpowers/plans/2026-10-07-agent-skills-hub.md`.
+
+### Architecture
+
+- `src/core/` holds all sync logic and **must not import `obsidian`**, so it runs under vitest on temp folders. Import Node builtins without the `node:` prefix (`fs`, `path`, `os`, `crypto`, `child_process`), so esbuild's externals match.
+- Pipeline: `scan.ts` reads the vault and agent folders into `SkillCopy` snapshots (lenient `contentKey`) → `group.ts` matches copies to skills by leaf folder name (duplicates are dropped or split) → `engine.ts` `planGroup` turns them into `Action[]` (pure, no I/O) → `executor.ts` applies them to disk → `sync.ts` `runSync` orchestrates and sends conflicts to an injected `Resolver`.
+- Other core modules:
+  - `frontmatter.ts`: textual frontmatter editing that never re-serializes YAML, so exports stay byte-identical.
+  - `merge.ts`, `conflictFiles.ts`, `externalMerge.ts`: three-way merge, `SKILL.conflict.md`, and the external merge tool.
+  - `migrate.ts`: symlink → copy migration.
+  - `base.ts`: `.base` generation and column updates.
+  - `agents.ts`: presets.
+  - `watcher.ts`: `fs.watch` with debounce.
+- The Obsidian layer: `main.ts` (commands, vault events, watcher gating via `exclusive()`), `settings.ts`, and `ui/` (modals, and `ObsidianResolver`, the resolver backed by them).
+
+### Invariants (don't break these)
+
+- No sync state outside frontmatter (no JSON or database). Plugin keys share a prefix (default `agent-`):
+  - `agent-<id>` (tri-state);
+  - `agent-skill-keys`;
+  - `agent-source`;
+  - `agent-path`;
+  - `agent-folder`;
+  - `agent-conflict`.
+
+  The suffixes in `RESERVED` (`frontmatter.ts`) can't be agent ids.
+- Exported `SKILL.md` keeps only the keys listed in `agent-skill-keys`, raw and in order; an empty list means no frontmatter block. User keys and plugin keys never reach agents.
+- Undecided (empty) agents are never pushed to, pulled from or deleted from.
+- `agent-source` is written only on import (and by the **Fill in missing skill sources** backfill when absent); sync must preserve it as is.
+- Every delete or move goes through `assertInside` (agent root) and never writes through a symlinked skill folder.
+
+### Adding a plugin property
+
+1. Add it to `PluginMeta` (`model.ts`) and `emptyMeta`.
+2. Add it to `readMeta` and `renderMeta` (`frontmatter.ts`), and add its suffix to `RESERVED`.
+3. Set it where skills are created or imported (`engine.ts` import action, `executor.importSkill`, `sync.applyResolution`).
+4. If it should show in the base, add a column in `base.ts` (`defaultBase` and `ensureAgentColumns`).
+5. Register its property type in `main.ts` `registerPropertyTypes`.
+6. Document it in `README.md`.
 
 ## Environment & tooling
 
@@ -43,21 +81,17 @@ npm run build
 
 - **Organize code into multiple files**: Split functionality across separate modules rather than putting everything in `main.ts`.
 - Source lives in `src/`. Keep `main.ts` small and focused on plugin lifecycle (loading, unloading, registering commands).
-- **Example file structure**:
+- **Actual file structure**:
     ```
     src/
-      main.ts           # Plugin entry point, lifecycle management
-      settings.ts       # Settings interface and defaults
-      commands/         # Command implementations
-        command1.ts
-        command2.ts
-      ui/              # UI components, modals, views
-        modal.ts
-        view.ts
-      utils/           # Utility functions, helpers
-        helpers.ts
-        constants.ts
-      types.ts         # TypeScript interfaces and types
+      main.ts            # Plugin lifecycle, commands, vault events, watcher gating
+      settings.ts        # Settings interface, defaults, settings tab
+      core/              # Obsidian-free sync logic (see Architecture)
+      ui/                # ConflictModal, simpleModals, resolver
+    tests/
+      helpers.ts         # temp dirs, put/tree/touch, skillMd, fixed dates
+      *.test.ts          # unit tests per core module
+      scenarios/         # end-to-end sync scenarios (harness.ts: world(), StubResolver, keep())
     ```
 - **Do not commit build artifacts**: Never commit `node_modules/`, `main.js`, or other generated files to version control.
 - Keep the plugin small. Avoid large dependencies. Prefer browser-compatible packages.
@@ -79,11 +113,13 @@ npm run build
 
 ## Testing
 
-- Manual install for testing: copy `main.js`, `manifest.json`, `styles.css` (if any) to:
-    ```
-    <Vault>/.obsidian/plugins/<plugin-id>/
-    ```
-- Reload Obsidian and enable the plugin in **Settings → Community plugins**.
+- `npm test` runs vitest (pinned to v3, because v5 conflicts with esbuild 0.25). Unit tests cover each core module; `tests/scenarios/` builds a temp vault plus temp agent folders and runs a full `runSync` with a `StubResolver`.
+- Tests must use temp dirs only. Never touch real agent folders (`~/.claude`, `~/.hermes`, …) or a real vault.
+- Set file mtimes explicitly (`put(..., T0)` / `touch`). Sync direction depends on dates; for example, a single ticked agent loses to a newer vault note.
+- `tests/watcher.test.ts` is timing-based and can flake under heavy load; rerun before investigating.
+- `npm run build` runs `tsc` (`moduleResolution: bundler`, which `node-diff3` types need) and esbuild. `npm run lint` must report 0 errors; the remaining warnings are known.
+- Manual check: `docs/e2e-checklist.md`, in a scratch vault whose `data.json` is pre-seeded with `initialized: true` and `agents: []`, so the plugin doesn't auto-detect real agent folders.
+- Manual install: copy `main.js`, `manifest.json` and `styles.css` to `<Vault>/.obsidian/plugins/agent-skills-hub/`, then reload Obsidian and enable the plugin.
 
 ## Commands & settings
 

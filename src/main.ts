@@ -6,7 +6,7 @@ import { resolveConflictFiles } from './core/conflictFiles';
 import { hasMarkers } from './core/merge';
 import type { SyncConfig } from './core/model';
 import { isConflictFile } from './core/scan';
-import { createSkill, deleteEverywhere, findAgentCopies, removeFromAgents, runSync } from './core/sync';
+import { createSkill, deleteEverywhere, fillMissingSources, findAgentCopies, removeFromAgents, runSync } from './core/sync';
 import { Watcher } from './core/watcher';
 import { DEFAULT_SETTINGS, type HubSettings, HubSettingTab } from './settings';
 import { ObsidianResolver } from './ui/resolver';
@@ -46,6 +46,7 @@ export default class AgentSkillsHub extends Plugin {
 			callback: () => new NewSkillModal(this.app, (n, d) => void this.newSkill(n, d)).open(),
 		});
 		this.addCommand({ id: 'create-base', name: 'Create or update the skills base', callback: () => void this.ensureBase(true) });
+		this.addCommand({ id: 'fill-missing-sources', name: 'Fill in missing skill sources', callback: () => void this.fillSources() });
 		this.addCommand({
 			id: 'delete-skill-everywhere', name: 'Delete current skill everywhere',
 			checkCallback: (checking) => {
@@ -232,6 +233,15 @@ export default class AgentSkillsHub extends Plugin {
 		});
 	}
 
+	private async fillSources(): Promise<void> {
+		await this.exclusive(async () => {
+			const changed = await fillMissingSources(this.config());
+			new Notice(changed.length > 0
+				? `Recorded the source of ${changed.length} skill${changed.length === 1 ? '' : 's'} (agents holding a copy now).`
+				: 'Every skill already has a source.');
+		});
+	}
+
 	private async resolveConflict(name: string): Promise<void> {
 		await this.exclusive(async () => {
 			const r = await resolveConflictFiles(this.config(), name);
@@ -271,6 +281,7 @@ export default class AgentSkillsHub extends Plugin {
 		for (const a of this.settings.agents) mtm.setType(`${p}${a.id}`, 'checkbox');
 		mtm.setType(`${p}conflict`, 'checkbox');
 		mtm.setType(`${p}skill-keys`, 'multitext');
+		mtm.setType(`${p}source`, 'multitext');
 		mtm.setType(`${p}path`, 'text');
 		mtm.setType(`${p}folder`, 'text');
 	}

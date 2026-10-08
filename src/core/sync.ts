@@ -1,7 +1,7 @@
 import { promises as fsp } from 'fs';
 import { join } from 'path';
 import type { Action, Conflict } from './engine';
-import { importPath, planGroup } from './engine';
+import { importPath, planGroup, sourcesOf } from './engine';
 import { Executor } from './executor';
 import { newSkillText } from './frontmatter';
 import { groupSkills, uniqueName } from './group';
@@ -72,7 +72,8 @@ export async function applyResolution(ex: Executor, g: SkillGroup, c: Conflict, 
 			if (c.kind === 'import') {
 				const states: Record<string, AgentState> = Object.fromEntries(cfg.agents.map((a) => [a.id, null]));
 				for (const owners of Object.values(c.owners)) for (const o of owners) if (o !== VAULT) states[o] = true;
-				await ex.importSkill(g.name, r.files, states, importPath(g, c.theirs, cfg), g.newFolder ?? '');
+				const sources = sourcesOf(g.copies.map((x) => x.owner), cfg);
+				await ex.importSkill(g.name, r.files, states, importPath(g, c.theirs, cfg), g.newFolder ?? '', sources);
 				return;
 			}
 			await ex.applyToVault(g, r.files, { conflict: false });
@@ -87,7 +88,7 @@ export async function applyResolution(ex: Executor, g: SkillGroup, c: Conflict, 
 				taken.add(name);
 				const states: Record<string, AgentState> = Object.fromEntries(cfg.agents.map((a) => [a.id, null]));
 				for (const o of c.owners[t.key] ?? []) if (o !== VAULT) states[o] = true;
-				await ex.importSkill(name, t.files, states, t.relPath, t.folder);
+				await ex.importSkill(name, t.files, states, t.relPath, t.folder, sourcesOf(c.owners[t.key] ?? [], cfg));
 			}
 			if (g.vault) {
 				const moved = c.theirs.flatMap((t) => (c.owners[t.key] ?? []).filter((o) => o !== VAULT));
@@ -182,4 +183,20 @@ export async function deleteEverywhere(cfg: SyncConfig, name: string): Promise<s
 		removed.push(g.vault.copy.dir);
 	}
 	return removed;
+}
+
+/**
+ * Backfill agent-source for notes that do not have it yet (skills imported before the property
+ * existed): records the agents currently holding a copy, archived copies included.
+ */
+export async function fillMissingSources(cfg: SyncConfig): Promise<string[]> {
+	const live = await liveConfig(cfg);
+	const ex = new Executor(cfg);
+	const changed: string[] = [];
+	for (const g of await loadGroups(cfg)) {
+		if (!g.vault || g.vault.meta.sources !== null) continue;
+		await ex.patchMeta(g, { sources: sourcesOf(g.copies.map((c) => c.owner), live) });
+		changed.push(g.name);
+	}
+	return changed;
 }

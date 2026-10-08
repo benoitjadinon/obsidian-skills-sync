@@ -15,7 +15,7 @@ export interface ParsedFm {
 	body: string;
 }
 
-export const RESERVED = ['skill-keys', 'path', 'folder', 'conflict'];
+export const RESERVED = ['skill-keys', 'source', 'path', 'folder', 'conflict'];
 
 const OPEN_RE = /^---[ \t]*\r?\n/;
 const CLOSE_RE = /^(?:---|\.\.\.)[ \t]*$/;
@@ -88,7 +88,7 @@ function boolValue(v: string): AgentState {
 }
 
 export function emptyMeta(): PluginMeta {
-	return { states: {}, skillKeys: null, path: '', folder: '', conflict: false };
+	return { states: {}, skillKeys: null, path: '', folder: '', conflict: false, sources: null };
 }
 
 export function readMeta(text: string, prefix: string): PluginMeta {
@@ -97,6 +97,7 @@ export function readMeta(text: string, prefix: string): PluginMeta {
 		if (!e.key.startsWith(prefix)) continue;
 		const sub = e.key.slice(prefix.length);
 		if (sub === 'skill-keys') meta.skillKeys = listValue(e);
+		else if (sub === 'source') meta.sources = listValue(e);
 		else if (sub === 'path') meta.path = unquote(firstLineValue(e));
 		else if (sub === 'folder') meta.folder = unquote(firstLineValue(e));
 		else if (sub === 'conflict') meta.conflict = boolValue(firstLineValue(e)) === true;
@@ -111,6 +112,7 @@ function scalar(s: string): string {
 
 export function renderMeta(meta: PluginMeta, prefix: string, eol: string, agentOrder: string[]): string {
 	const lines = [`${prefix}skill-keys: [${(meta.skillKeys ?? []).map(scalar).join(', ')}]`];
+	if (meta.sources !== null) lines.push(`${prefix}source: [${meta.sources.map(scalar).join(', ')}]`);
 	const extra = Object.keys(meta.states).filter((id) => !agentOrder.includes(id));
 	for (const id of [...agentOrder, ...extra]) {
 		const v = meta.states[id] ?? null;
@@ -177,5 +179,5 @@ export function setMeta(vaultText: string, meta: PluginMeta, prefix: string, age
 
 export function newSkillText(name: string, description: string, prefix: string, agentOrder: string[]): string {
 	const agentText = `---\nname: ${scalar(name)}\ndescription: ${JSON.stringify(description)}\n---\n\n# ${name}\n`;
-	return toVaultText(agentText, null, prefix, emptyMeta(), agentOrder);
+	return toVaultText(agentText, null, prefix, { ...emptyMeta(), sources: [] }, agentOrder);
 }

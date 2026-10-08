@@ -67,8 +67,10 @@ export class Executor {
 		await this.syncDir(this.vaultDir(name), out, this.cfg.hubDir);
 	}
 
-	async importSkill(name: string, files: Map<string, Uint8Array>, states: Record<string, AgentState>, path: string, folder: string): Promise<void> {
-		await this.writeVault(name, files, { ...emptyMeta(), states, path, folder }, null);
+	async importSkill(
+		name: string, files: Map<string, Uint8Array>, states: Record<string, AgentState>, path: string, folder: string, sources: string[],
+	): Promise<void> {
+		await this.writeVault(name, files, { ...emptyMeta(), states, path, folder, sources }, null);
 	}
 
 	async pushFiles(g: SkillGroup, agentId: string, files: Map<string, Uint8Array>): Promise<void> {
@@ -134,7 +136,7 @@ export class Executor {
 		const g = action.group;
 		switch (action.type) {
 			case 'import':
-				return this.importSkill(g.name, action.from.files, action.states, action.path, action.folder);
+				return this.importSkill(g.name, action.from.files, action.states, action.path, action.folder, action.sources);
 			case 'push':
 				if (g.vault) await this.pushFiles(g, action.agent, g.vault.copy.files);
 				return;

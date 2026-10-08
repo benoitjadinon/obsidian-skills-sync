@@ -34,3 +34,4 @@ Each line: action → expected result. Tick it and note anything unexpected.
 ## Cleanup
 
 Disable the plugin, delete the scratch vault and `~/tmp/ash`.
+- Import a skill from an agent → the note has `agent-source: [<agent>]`; edit it by hand → it survives the next sync. On notes without `agent-source`, run **Fill in missing skill sources** → it is filled with the agents holding a copy; running it again changes nothing.

@@ -62,7 +62,7 @@ Each skill is a folder in your skills folder. Its `SKILL.md` is the note you see
 
 You can add your own properties (ratings, tags, notes). They stay in the vault and are never copied to agents.
 
-The default base has four views: **All skills**, **Undecided** (some agent not decided yet), **Unassigned** (shared with no agent) and **Conflicts**.
+The default base has four views: **All skills**, **Undecided** (some agent not decided yet), **Unassigned** (shared with no agent) and **Conflicts**. It also defines a hidden **Renamed or split** formula (true when a skill's note name differs from its agent folder name, e.g. after **Keep as separate skills**); show it from a view's **Properties** menu.
 
 ## Projects
 

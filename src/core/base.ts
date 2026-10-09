@@ -24,6 +24,10 @@ const keyOf = (item: unknown): string => String(isScalar(item) ? item.value : it
 /** Formula giving each row a clickable link to its SKILL.md, shown as the skill folder name. */
 const skillFormulaId = (o: BaseOptions): string => `${o.prefix}skillfile`;
 const skillFormula = (o: BaseOptions): string => `file.asLink(file.folder.replace(${JSON.stringify(`${o.hubFolder}/`)}, ""))`;
+/** Hidden formula: true when the note's folder name differs from the agents' folder name (renamed or split). */
+const folderDiffersId = (o: BaseOptions): string => `${o.prefix}folder-differs`;
+const folderDiffersFormula = (o: BaseOptions): string =>
+	`if(note["${o.prefix}folder"], note["${o.prefix}folder"] != file.folder.replace(${JSON.stringify(`${o.hubFolder}/`)}, ""), false)`;
 const ref = (o: BaseOptions, id: string): string => `note[${JSON.stringify(o.prefix + id)}]`;
 const undecided = (o: BaseOptions) => ({ or: o.agents.map((a) => `${ref(o, a.id)} == null`) });
 const unassigned = (o: BaseOptions) => ({ and: o.agents.map((a) => `${ref(o, a.id)} != true`) });
@@ -47,11 +51,12 @@ export function defaultBase(o: BaseOptions): string {
 		[col(o, 'source')]: { displayName: 'Source' },
 		[col(o, 'path')]: { displayName: 'Path' },
 		[col(o, 'delete')]: { displayName: 'Delete' },
+		[`formula.${folderDiffersId(o)}`]: { displayName: 'Renamed or split' },
 	};
 	for (const a of o.agents) properties[col(o, a.id)] = { displayName: a.label };
 	return stringify({
 		filters: { and: [`file.inFolder(${JSON.stringify(o.hubFolder)})`, 'file.name == "SKILL"'] },
-		formulas: { [skillFormulaId(o)]: skillFormula(o) },
+		formulas: { [skillFormulaId(o)]: skillFormula(o), [folderDiffersId(o)]: folderDiffersFormula(o) },
 		properties,
 		views: [
 			{ type: 'table', name: VIEW_ALL, order },
@@ -74,6 +79,9 @@ export function ensureAgentColumns(text: string, o: BaseOptions): string {
 	const formulaKey = `formula.${skillFormulaId(o)}`;
 	if (!doc.hasIn(['formulas', skillFormulaId(o)])) doc.setIn(['formulas', skillFormulaId(o)], skillFormula(o));
 	if (!doc.hasIn(['properties', formulaKey])) doc.setIn(['properties', formulaKey], doc.createNode({ displayName: 'Skill' }));
+	// Defined but not shown: available from the view's Properties menu.
+	if (!doc.hasIn(['formulas', folderDiffersId(o)])) doc.setIn(['formulas', folderDiffersId(o)], folderDiffersFormula(o));
+	if (!doc.hasIn(['properties', `formula.${folderDiffersId(o)}`])) doc.setIn(['properties', `formula.${folderDiffersId(o)}`], doc.createNode({ displayName: 'Renamed or split' }));
 	const views = doc.get('views');
 	if (isSeq(views)) {
 		const tables = views.items.filter((v) => isMap(v) && v.get('type') === 'table');

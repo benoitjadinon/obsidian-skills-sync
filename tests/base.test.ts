@@ -186,3 +186,17 @@ describe('Delete column', () => {
 		expect(order).toContain('agent-codex');
 	});
 });
+
+describe('folder-differs formula (hidden)', () => {
+	const o = { hubFolder: 'AI/skills', prefix: 'agent-', agents: [{ id: 'claude', label: 'Claude' }] };
+	interface B { formulas: Record<string, string>; properties: Record<string, { displayName: string }>; views: { order: string[] }[] }
+	const F = 'if(note["agent-folder"], note["agent-folder"] != file.folder.replace("AI/skills/", ""), false)';
+	it('is defined in new and existing bases but in no view', () => {
+		for (const text of [defaultBase(o), ensureAgentColumns('views:\n  - type: table\n    name: T\n    order:\n      - file.name\n', o)]) {
+			const b = parse(text) as B;
+			expect(b.formulas['agent-folder-differs']).toBe(F);
+			expect(b.properties['formula.agent-folder-differs']?.displayName).toBe('Renamed or split');
+			for (const v of b.views) expect(v.order).not.toContain('formula.agent-folder-differs');
+		}
+	});
+});

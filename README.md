@@ -57,7 +57,7 @@ Each skill is a folder in your skills folder. Its `SKILL.md` is the note you see
 | `agent-skill-keys` | The skill's own frontmatter keys, in their original order. Only these keys are written to agents, and an empty list means the skill had no frontmatter at all. |
 | `agent-path` | The category folder, for agents that group skills into folders (Hermes: `github` → `~/.hermes/skills/github/<skill>/`). |
 | `agent-folder` | The skill's folder name in agents (always recorded, internal: not shown in the base). Agents keep this folder name even if you rename the note; it also tells apart two different skills that share a name. |
-| `agent-delete` | **Delete** column (always the last one): tick it and the next sync deletes the skill everywhere. |
+| `agent-delete` | **To Delete** column (always the last one): tick it and the next sync deletes the skill everywhere. |
 | `agent-conflict` | `true` while a conflict is waiting for you (listed in the base's **Conflicts** view). |
 
 You can add your own properties (ratings, tags, notes). They stay in the vault and are never copied to agents.
@@ -91,7 +91,7 @@ Comparisons ignore formatting noise: line endings, trailing spaces, blank lines 
 
 ## Deleting skills
 
-Tick a skill's **Delete** checkbox (the last column; the base's **To delete** view lists them). The next sync deletes it from every agent and project folder and from the vault:
+Tick a skill's **To Delete** checkbox (the last column; the base's **To delete** view lists them). The next sync deletes it from every agent and project folder and from the vault:
 
 - **Agent copies** (archived ones too) are moved to `~/.skills-sync-trash/<date>/<agent>/<skill>`, not erased: move them back to restore.
 - **The skill's note** goes wherever Obsidian puts deleted files (**Settings → Files and links → Deleted files**: your system trash, the vault's `.trash` folder, or permanently).

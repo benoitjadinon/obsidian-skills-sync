@@ -174,7 +174,7 @@ describe('Delete column', () => {
 	it('is the last column of a new base, with a To delete view', () => {
 		const b = parse(defaultBase(o(['claude']))) as B;
 		expect(b.views[0]?.order.at(-1)).toBe('agent-delete');
-		expect(b.properties['note.agent-delete']?.displayName).toBe('Delete');
+		expect(b.properties['note.agent-delete']?.displayName).toBe('To Delete');
 		expect(b.views.find((v) => v.name === 'To delete')?.filters?.and).toEqual(['note["agent-delete"] == true']);
 	});
 	it('stays last when the base is updated with new agents', () => {
@@ -198,5 +198,15 @@ describe('folder-differs formula (hidden)', () => {
 			expect(b.properties['formula.agent-folder-differs']?.displayName).toBe('Renamed or split');
 			for (const v of b.views) expect(v.order).not.toContain('formula.agent-folder-differs');
 		}
+	});
+});
+
+describe('To Delete display name', () => {
+	it('renames the old "Delete" name, keeps a custom one', () => {
+		const o = { hubFolder: 'Skills', prefix: 'agent-', agents: [] };
+		const old = 'properties:\n  note.agent-delete:\n    displayName: Delete\nviews: []\n';
+		expect((parse(ensureAgentColumns(old, o)) as { properties: Record<string, { displayName: string }> }).properties['note.agent-delete']?.displayName).toBe('To Delete');
+		const custom = old.replace('displayName: Delete', 'displayName: Bin');
+		expect((parse(ensureAgentColumns(custom, o)) as { properties: Record<string, { displayName: string }> }).properties['note.agent-delete']?.displayName).toBe('Bin');
 	});
 });

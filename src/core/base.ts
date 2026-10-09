@@ -50,7 +50,7 @@ export function defaultBase(o: BaseOptions): string {
 		[`formula.${skillFormulaId(o)}`]: { displayName: 'Skill' },
 		[col(o, 'source')]: { displayName: 'Source' },
 		[col(o, 'path')]: { displayName: 'Path' },
-		[col(o, 'delete')]: { displayName: 'Delete' },
+		[col(o, 'delete')]: { displayName: 'To Delete' },
 		[`formula.${folderDiffersId(o)}`]: { displayName: 'Renamed or split' },
 	};
 	for (const a of o.agents) properties[col(o, a.id)] = { displayName: a.label };
@@ -71,7 +71,7 @@ export function defaultBase(o: BaseOptions): string {
 /** Add missing agent and Source properties/columns to an existing base; refresh the plugin-managed views' filters. */
 export function ensureAgentColumns(text: string, o: BaseOptions): string {
 	const doc = parseDocument(text);
-	const columns = [...o.agents.map((a) => ({ id: a.id, label: a.label })), { id: 'source', label: 'Source' }, { id: 'delete', label: 'Delete' }];
+	const columns = [...o.agents.map((a) => ({ id: a.id, label: a.label })), { id: 'source', label: 'Source' }, { id: 'delete', label: 'To Delete' }];
 	for (const c of columns) {
 		const has = doc.hasIn(['properties', col(o, c.id)]) || doc.hasIn(['properties', orderCol(o, c.id)]);
 		if (!has) doc.setIn(['properties', col(o, c.id)], doc.createNode({ displayName: c.label }));
@@ -79,6 +79,10 @@ export function ensureAgentColumns(text: string, o: BaseOptions): string {
 	const formulaKey = `formula.${skillFormulaId(o)}`;
 	if (!doc.hasIn(['formulas', skillFormulaId(o)])) doc.setIn(['formulas', skillFormulaId(o)], skillFormula(o));
 	if (!doc.hasIn(['properties', formulaKey])) doc.setIn(['properties', formulaKey], doc.createNode({ displayName: 'Skill' }));
+	// Earlier versions named the Delete column "Delete": rename it unless the user chose another name.
+	for (const key of [col(o, 'delete'), orderCol(o, 'delete')]) {
+		if (doc.getIn(['properties', key, 'displayName']) === 'Delete') doc.setIn(['properties', key, 'displayName'], 'To Delete');
+	}
 	// Defined but not shown: available from the view's Properties menu.
 	if (!doc.hasIn(['formulas', folderDiffersId(o)])) doc.setIn(['formulas', folderDiffersId(o)], folderDiffersFormula(o));
 	if (!doc.hasIn(['properties', `formula.${folderDiffersId(o)}`])) doc.setIn(['properties', `formula.${folderDiffersId(o)}`], doc.createNode({ displayName: 'Renamed or split' }));

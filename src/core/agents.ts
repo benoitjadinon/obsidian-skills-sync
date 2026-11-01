@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'fs';
 import { homedir } from 'os';
-import { isAbsolute, join, relative, sep } from 'path';
+import { dirname, isAbsolute, join, relative, sep } from 'path';
 import { RESERVED } from './frontmatter';
 import type { AgentConfig } from './model';
 import generated from './agentPresets.generated.json';
@@ -147,8 +147,18 @@ export function presetsFor(home: string = homedir()): AgentConfig[] {
 	return out;
 }
 
+/**
+ * Whether an agent is installed: its skills folder exists, or its parent does (an agent that
+ * hasn't created a skill yet has no skills folder, e.g. ~/.config/opencode/skills). The home folder
+ * itself doesn't count as a parent.
+ */
+export function folderInstalled(path: string, exists: (p: string) => boolean, home: string = homedir()): boolean {
+	const parent = dirname(path);
+	return exists(path) || (parent !== home && parent !== dirname(parent) && exists(parent));
+}
+
 export function detectPresets(home: string = homedir()): AgentConfig[] {
-	return presetsFor(home).filter((p) => existsSync(expandHome(p.path, home))).map((p) => ({ ...p }));
+	return presetsFor(home).filter((p) => folderInstalled(expandHome(p.path, home), existsSync, home)).map((p) => ({ ...p }));
 }
 
 export function slugify(s: string): string {
@@ -166,7 +176,7 @@ export function validateAgentId(id: string, agents: AgentConfig[]): string | nul
 export function availablePresets(configured: AgentConfig[], home: string = homedir()): { preset: AgentConfig; installed: boolean }[] {
 	const taken = new Set(configured.map((a) => expandHome(a.path, home)));
 	return presetsFor(home).filter((p) => !taken.has(expandHome(p.path, home)))
-		.map((preset) => ({ preset, installed: existsSync(expandHome(preset.path, home)) }))
+		.map((preset) => ({ preset, installed: folderInstalled(expandHome(preset.path, home), existsSync, home) }))
 		.sort((a, b) => Number(b.installed) - Number(a.installed) || a.preset.label.localeCompare(b.preset.label));
 }
 

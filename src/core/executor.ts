@@ -6,7 +6,7 @@ import type { Action } from './engine';
 import { stateKeys } from './projects';
 import { emptyMeta, setMeta, toVaultText } from './frontmatter';
 import type { AgentConfig, AgentState, PluginMeta, SkillCopy, SkillGroup, SyncConfig } from './model';
-import { contentKey, exists, readSkillDir, sameBytes, toBytes, toText } from './scan';
+import { agentPresent, contentKey, exists, readSkillDir, sameBytes, toBytes, toText } from './scan';
 
 export function assertInside(child: string, root: string): void {
 	const rel = relative(resolve(root), resolve(child));
@@ -91,7 +91,7 @@ export class Executor {
 	}
 
 	/** Make dir contain exactly `files` (conflict files and OS junk are left alone). Only rewrites changed files. */
-	async syncDir(dir: string, files: Map<string, Uint8Array>, root: string): Promise<void> {
+	async syncDir(dir: string, files: Map<string, Uint8Array>, root: string, mtimeMs?: number): Promise<void> {
 		assertInside(dir, root);
 		const st = await fsp.lstat(dir).catch(() => null);
 		if (st?.isSymbolicLink()) throw new Error(`${dir} is a symlink; run the symlink migration first`);
@@ -105,43 +105,49 @@ export class Executor {
 			await fsp.writeFile(p, data);
 		}
 		await pruneEmptyDirs(dir);
+		// Carry the source's modified date over, so copies don't look newer than the version they came from.
+		if (mtimeMs) {
+			const t = new Date(mtimeMs);
+			for (const rel of files.keys()) await fsp.utimes(join(dir, rel), t, t);
+		}
 	}
 
 	/** Write agent-form files as the vault version (SKILL.md converted with toVaultText). */
-	async writeVault(name: string, files: Map<string, Uint8Array>, meta: PluginMeta, existingRaw: string | null): Promise<void> {
+	async writeVault(name: string, files: Map<string, Uint8Array>, meta: PluginMeta, existingRaw: string | null, mtimeMs?: number): Promise<void> {
 		const agentText = toText(files.get('SKILL.md') ?? toBytes(''));
 		const out = new Map(files);
 		out.set('SKILL.md', toBytes(toVaultText(agentText, existingRaw, this.cfg.prefix, meta, this.order)));
-		await this.syncDir(this.vaultDir(name), out, this.cfg.hubDir);
+		await this.syncDir(this.vaultDir(name), out, this.cfg.hubDir, mtimeMs);
 	}
 
 	async importSkill(
-		name: string, files: Map<string, Uint8Array>, states: Record<string, AgentState>, path: string, folder: string, sources: string[],
+		name: string, files: Map<string, Uint8Array>, states: Record<string, AgentState>, path: string, folder: string, sources: string[], mtimeMs?: number,
 	): Promise<void> {
-		await this.writeVault(name, files, { ...emptyMeta(), states, path, folder, sources }, null);
+		await this.writeVault(name, files, { ...emptyMeta(), states, path, folder, sources }, null, mtimeMs);
 	}
 
-	async pushFiles(g: SkillGroup, agentId: string, files: Map<string, Uint8Array>): Promise<void> {
+	async pushFiles(g: SkillGroup, agentId: string, files: Map<string, Uint8Array>, mtimeMs?: number): Promise<void> {
 		const a = this.agent(agentId);
 		// Agent folders must exist; project folders are created while their project exists.
-		if (!(await exists(a.createIn ?? a.path))) return;
+		if (!(await agentPresent(a))) return;
 		const existing = g.copies.find((c) => c.owner === agentId && !c.archived);
 		const dir = existing?.dir ?? this.agentTarget(a, g.vault?.meta.folder || g.name, g.vault?.meta.path ?? '');
-		await this.syncDir(dir, files, a.path);
+		await this.syncDir(dir, files, a.path, mtimeMs);
 	}
 
 	/** Make `files` the vault version and push it to every `true` agent that differs. */
-	async applyToVault(g: SkillGroup, files: Map<string, Uint8Array>, patch: Partial<PluginMeta> = {}): Promise<void> {
+	async applyToVault(g: SkillGroup, files: Map<string, Uint8Array>, patch: Partial<PluginMeta> = {}, mtimeMs?: number): Promise<void> {
 		const v = g.vault;
 		if (!v) throw new Error(`${g.name} has no vault version`);
-		const meta = { ...v.meta, ...patch };
-		await this.writeVault(g.name, files, meta, v.rawSkillMd);
+		const meta: PluginMeta = { ...v.meta, ...patch, states: { ...v.meta.states, ...(patch.states ?? {}) } };
+		await this.writeVault(g.name, files, meta, v.rawSkillMd, mtimeMs);
+		v.meta = meta;
 		const key = contentKey(files);
 		for (const a of this.cfg.agents) {
 			if (meta.states[a.stateKey ?? a.id] !== true) continue;
 			const c = g.copies.find((x) => x.owner === a.id && !x.archived);
 			if (c && c.key === key) continue;
-			await this.pushFiles(g, a.id, files);
+			await this.pushFiles(g, a.id, files, mtimeMs);
 		}
 	}
 
@@ -190,19 +196,19 @@ export class Executor {
 
 	async unarchive(g: SkillGroup, copy: SkillCopy): Promise<void> {
 		await this.remove(copy);
-		if (g.vault) await this.pushFiles({ ...g, copies: g.copies.filter((c) => c !== copy) }, copy.owner, g.vault.copy.files);
+		if (g.vault) await this.pushFiles({ ...g, copies: g.copies.filter((c) => c !== copy) }, copy.owner, g.vault.copy.files, g.vault.copy.mtimeMs);
 	}
 
 	async apply(action: Action): Promise<void> {
 		const g = action.group;
 		switch (action.type) {
 			case 'import':
-				return this.importSkill(g.name, action.from.files, action.states, action.path, action.folder, action.sources);
+				return this.importSkill(g.name, action.from.files, action.states, action.path, action.folder, action.sources, action.from.mtimeMs);
 			case 'push':
-				if (g.vault) await this.pushFiles(g, action.agent, g.vault.copy.files);
+				if (g.vault) await this.pushFiles(g, action.agent, g.vault.copy.files, g.vault.copy.mtimeMs);
 				return;
 			case 'pull':
-				return this.applyToVault(g, action.from.files);
+				return this.applyToVault(g, action.from.files, {}, action.from.mtimeMs);
 			case 'delete':
 				return this.remove(action.copy);
 			case 'archive':

@@ -1,4 +1,4 @@
-import { existsSync, statSync } from 'fs';
+import { existsSync, mkdirSync, statSync } from 'fs';
 import { join } from 'path';
 import { describe, expect, it } from 'vitest';
 import { readMeta, setMeta } from '../../src/core/frontmatter';
@@ -176,12 +176,24 @@ describe('scenario 12: skill without frontmatter', () => {
 describe('review focus: missing agent folder', () => {
 	it('skips the agent entirely', async () => {
 		const w = world([{ id: 'claude' }]);
-		w.cfg.agents.push({ id: 'gone', label: 'Gone', path: join(w.root, 'agents', 'gone-missing'), kind: 'agent', layout: 'flat', archiveDir: '' });
+		w.cfg.agents.push({ id: 'gone', label: 'Gone', path: join(w.root, 'agents', 'gone-parent', 'skills'), kind: 'agent', layout: 'flat', archiveDir: '' });
 		w.put('vault', { 'x/SKILL.md': w.vaultMd(skillMd('x'), { claude: true, gone: true }) }, T0);
 		w.put('claude', { 'x/SKILL.md': skillMd('x') }, T0);
 		const report = await runSync(w.cfg, new StubResolver());
 		expect(report.errors).toEqual([]);
-		expect(existsSync(join(w.root, 'agents', 'gone-missing'))).toBe(false);
+		expect(existsSync(join(w.root, 'agents', 'gone-parent'))).toBe(false);
+	});
+
+	it('creates the skills folder when only its parent exists', async () => {
+		const w = world([{ id: 'claude' }]);
+		const skills = join(w.root, 'agents', 'fresh', 'skills');
+		mkdirSync(join(w.root, 'agents', 'fresh'), { recursive: true });
+		w.cfg.agents.push({ id: 'fresh', label: 'Fresh', path: skills, kind: 'agent', layout: 'flat', archiveDir: '' });
+		w.put('vault', { 'x/SKILL.md': w.vaultMd(skillMd('x'), { claude: true, fresh: true }) }, T0);
+		w.put('claude', { 'x/SKILL.md': skillMd('x') }, T0);
+		const report = await runSync(w.cfg, new StubResolver());
+		expect(report.errors).toEqual([]);
+		expect(existsSync(join(skills, 'x', 'SKILL.md'))).toBe(true);
 	});
 });
 

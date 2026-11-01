@@ -219,3 +219,10 @@ input.ash-invalid {
 	border: 1px solid var(--color-orange);
 	background-color: rgba(var(--color-orange-rgb), 0.1);
 }
+.ash-delete-hint {
+	padding: var(--size-4-2) var(--size-4-3);
+	margin-bottom: var(--size-4-3);
+	border-radius: var(--radius-s);
+	border: 1px solid var(--color-blue);
+	background-color: rgba(var(--color-blue-rgb), 0.1);
+}

@@ -99,6 +99,7 @@ export class ConflictModal extends Modal {
 			card.createDiv({ text: `Modified ${formatDateTime(v.mtimeMs)}` });
 		}
 
+		this.renderDeleteNotice();
 		this.renderSimilarityHint();
 		const files = this.differingFiles();
 		if (files.length > 0 && !files.includes(this.file)) this.file = files[0] ?? 'SKILL.md';
@@ -130,6 +131,15 @@ export class ConflictModal extends Modal {
 	private looksDifferent(): boolean {
 		const s = this.similarity();
 		return s !== null && s < 0.5;
+	}
+
+	private renderDeleteNotice(): void {
+		const c = this.req.conflict;
+		if (c.kind !== 'delete') return;
+		const agentLabel = this.label(c.agent ?? '');
+		const notice = this.contentEl.createDiv({ cls: 'ash-delete-hint' });
+		notice.createEl('strong', { text: `${agentLabel} is disabled for this skill in your vault, ` });
+		notice.appendText('but has a modified copy on disk (e.g. from an app install or external change).');
 	}
 
 	private renderSimilarityHint(): void {
@@ -247,14 +257,20 @@ export class ConflictModal extends Modal {
 		};
 		switch (c.kind) {
 			case 'import':
-				for (const t of c.theirs) add(`Use ${this.holders(t)}`, () => this.finish({ kind: 'apply', files: t.files }));
+				for (const t of c.theirs) add(`Use ${this.holders(t)}`, () => this.finish({ kind: 'apply', files: t.files, mtimeMs: t.mtimeMs }));
 				add('Import as separate skills', () => this.finish({ kind: 'split' }));
 				break;
 			case 'delete': {
 				const ours = c.ours;
 				const t = c.theirs[0];
-				if (ours) add(`Remove from ${this.label(c.agent ?? '')}`, () => this.finish({ kind: 'apply', files: ours.files }), true);
-				if (t) add('Keep its version in the vault, then remove', () => this.finish({ kind: 'apply', files: t.files }));
+				const agentLabel = this.label(c.agent ?? '');
+				if (t) {
+					add(`Update vault and enable in ${agentLabel}`, () => this.finish({ kind: 'apply', files: t.files, mtimeMs: t.mtimeMs, enableAgent: c.agent }));
+					add(`Update vault, but keep disabled in ${agentLabel}`, () => this.finish({ kind: 'apply', files: t.files, mtimeMs: t.mtimeMs }));
+				}
+				if (ours) {
+					add(`Discard from ${agentLabel}`, () => this.finish({ kind: 'apply', files: ours.files, mtimeMs: ours.mtimeMs }));
+				}
 				if (t) add('Keep as separate skills…', () => this.splitWithName());
 				break;
 			}
@@ -268,8 +284,8 @@ export class ConflictModal extends Modal {
 			default: {
 				const ours = c.ours;
 				const theirs = c.theirs[0];
-				if (ours) add('Keep vault version', () => this.finish({ kind: 'apply', files: ours.files }));
-				for (const t of c.theirs) add(`Keep ${this.holders(t)}`, () => this.finish({ kind: 'apply', files: t.files }));
+				if (ours) add('Keep vault version', () => this.finish({ kind: 'apply', files: ours.files, mtimeMs: ours.mtimeMs }));
+				for (const t of c.theirs) add(`Keep ${this.holders(t)}`, () => this.finish({ kind: 'apply', files: t.files, mtimeMs: t.mtimeMs }));
 				if (ours && theirs) {
 					const m = mergeSkill(ours, c.base, theirs, conflictLabels(c, this.req.labels));
 					if (m.clean) add('Apply clean merge', () => this.finish({ kind: 'apply', files: m.files }), !this.looksDifferent());

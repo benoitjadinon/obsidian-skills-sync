@@ -1,15 +1,15 @@
 import { promises as fsp } from 'fs';
 import { join } from 'path';
 import type { Action, Conflict } from './engine';
-import { importPath, importStates, planGroup, sourcesOf } from './engine';
+import { importPath, importStates, planGroup, sourcesOf, stateKeyOf } from './engine';
 import { stateKeys } from './projects';
 import { Executor } from './executor';
 import { newSkillText, setMeta } from './frontmatter';
 import { groupSkills, uniqueName } from './group';
 import { findSymlinks, migrate } from './migrate';
-import type { AgentState, SkillCopy, SkillGroup, SyncConfig } from './model';
+import type { AgentState, PluginMeta, SkillCopy, SkillGroup, SyncConfig } from './model';
 import { VAULT } from './model';
-import { exists, scanAgent, scanVault } from './scan';
+import { agentPresent, exists, scanAgent, scanVault } from './scan';
 import { validateSkillName } from './validate';
 
 export interface ConflictRequest {
@@ -20,7 +20,7 @@ export interface ConflictRequest {
 }
 
 export type Resolution =
-	| { kind: 'apply'; files: Map<string, Uint8Array> }
+	| { kind: 'apply'; files: Map<string, Uint8Array>; /** Modified date of the picked version (absent for merges). */ mtimeMs?: number; enableAgent?: string }
 	| { kind: 'skip' }
 	| { kind: 'pending' }
 	/** The agents' versions become separate skills (name: for a single version, the note's name). */
@@ -61,7 +61,7 @@ export function labelsFor(cfg: SyncConfig): Record<string, string> {
 
 export async function liveConfig(cfg: SyncConfig): Promise<SyncConfig> {
 	const agents = [];
-	for (const a of cfg.agents) if (await exists(a.createIn ?? a.path)) agents.push(a);
+	for (const a of cfg.agents) if (await agentPresent(a)) agents.push(a);
 	return { ...cfg, agents };
 }
 
@@ -83,12 +83,14 @@ export async function applyResolution(ex: Executor, g: SkillGroup, c: Conflict, 
 			if (c.kind === 'import') {
 				const states = importStates(cfg, Object.values(c.owners).flat().filter((o) => o !== VAULT));
 				const sources = sourcesOf(g.copies.map((x) => x.owner), cfg);
-				await ex.importSkill(g.name, r.files, states, importPath(g, c.theirs, cfg), g.newFolder ?? c.theirs[0]?.folder ?? g.name, sources);
+				await ex.importSkill(g.name, r.files, states, importPath(g, c.theirs, cfg), g.newFolder ?? c.theirs[0]?.folder ?? g.name, sources, r.mtimeMs);
 				return;
 			}
-			await ex.applyToVault(g, r.files, { conflict: false });
+			const patch: Partial<PluginMeta> = { conflict: false };
+			if (r.enableAgent) patch.states = { [stateKeyOf(cfg, r.enableAgent)]: true };
+			await ex.applyToVault(g, r.files, patch, r.mtimeMs);
 			const target = c.theirs[0];
-			if (c.kind === 'delete' && target) await ex.archive(target);
+			if (c.kind === 'delete' && target && !r.enableAgent) await ex.archive(target);
 			return;
 		}
 		case 'split': {
@@ -97,7 +99,7 @@ export async function applyResolution(ex: Executor, g: SkillGroup, c: Conflict, 
 				const name = uniqueName(r.name && c.theirs.length === 1 ? r.name : splitName(g.name, t.owner), taken);
 				taken.add(name);
 				const states = importStates(cfg, (c.owners[t.key] ?? []).filter((o) => o !== VAULT));
-				await ex.importSkill(name, t.files, states, t.relPath, t.folder, sourcesOf(c.owners[t.key] ?? [], cfg));
+				await ex.importSkill(name, t.files, states, t.relPath, t.folder, sourcesOf(c.owners[t.key] ?? [], cfg), t.mtimeMs);
 			}
 			if (g.vault) {
 				const moved = c.theirs.flatMap((t) => (c.owners[t.key] ?? []).filter((o) => o !== VAULT));

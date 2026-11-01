@@ -1,6 +1,7 @@
 import { promises as fsp } from 'fs';
 import { createHash } from 'crypto';
-import { join, relative, resolve, sep } from 'path';
+import { homedir } from 'os';
+import { dirname, join, relative, resolve, sep } from 'path';
 import { archiveRoot } from './agents';
 import { parse as parseYamlText } from 'yaml';
 import { parseFrontmatter, readMeta, toAgentText } from './frontmatter';
@@ -20,6 +21,13 @@ export function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
 	if (a.length !== b.length) return false;
 	for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
 	return true;
+}
+
+/** Whether an agent's folder (or, for a global one, its parent) exists on this computer. */
+export async function agentPresent(a: { path: string; createIn?: string }): Promise<boolean> {
+	if (a.createIn) return exists(a.createIn);
+	const parent = dirname(a.path);
+	return (await exists(a.path)) || (parent !== homedir() && (await exists(parent)));
 }
 
 export async function exists(p: string): Promise<boolean> {

@@ -1,6 +1,6 @@
 import { existsSync } from 'fs';
 import { homedir } from 'os';
-import { isAbsolute, relative, resolve } from 'path';
+import { isAbsolute, join, relative, resolve } from 'path';
 import { archiveRoot, expandHome } from './agents';
 import type { AgentConfig, ProjectConfig } from './model';
 
@@ -109,7 +109,7 @@ export function validateSkillName(value: string, existing: string[]): Check {
 
 export function validateProjectFolder(
 	value: string,
-	ctx: { hubDir: string; others: ProjectConfig[]; home?: string },
+	ctx: { hubDir: string; others: ProjectConfig[]; home?: string; projectDirs?: string[] },
 ): Check {
 	const home = ctx.home ?? homedir();
 	const v = value.trim();
@@ -117,7 +117,12 @@ export function validateProjectFolder(
 	const abs = expandHome(v, home);
 	if (!isAbsolute(abs)) return 'Use an absolute path, or one starting with ~.';
 	if (ctx.others.some((p) => resolve(expandHome(p.root, home)) === resolve(abs))) return 'This folder is already a project.';
-	if (within(abs, ctx.hubDir) || within(ctx.hubDir, abs)) return "Can't be the vault skills folder, a folder inside it, or a folder containing it.";
+	// A root merely containing the vault skills folder is fine; only the folders synced inside it matter.
+	if (within(abs, ctx.hubDir)) return "Can't be the vault skills folder or a folder inside it.";
+	for (const d of ctx.projectDirs ?? []) {
+		const target = join(abs, d);
+		if (within(target, ctx.hubDir) || within(ctx.hubDir, target)) return `Its skills folder ${d} would overlap the vault skills folder.`;
+	}
 	if (!existsSync(abs)) return "This folder doesn't exist.";
 	return null;
 }

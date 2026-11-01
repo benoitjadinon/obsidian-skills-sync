@@ -1,6 +1,6 @@
 import { FileSystemAdapter, normalizePath, Notice, Plugin, TAbstractFile, TFile, TFolder } from 'obsidian';
 import { join, relative, sep } from 'path';
-import { contractHome, detectPresets, expandHome, inferPreset, presetsFor } from './core/agents';
+import { contractHome, detectPresets, folderInstalled, expandHome, inferPreset, presetsFor } from './core/agents';
 import { type BaseOptions, defaultBase, ensureAgentColumns, isUnavailableColumn, listTableViews, removeAgentColumn } from './core/base';
 import { mergeOnSave, migrateSettings } from './core/settingsStore';
 import { existsSync } from 'fs';
@@ -191,7 +191,8 @@ export default class AgentSkillsHub extends Plugin {
 
 	/** Whether an agent or project can sync on this computer (its folder exists here). */
 	isAvailable(item: { path?: string; root?: string }): boolean {
-		return existsSync(expandHome(item.root ?? item.path ?? ''));
+		if (item.root) return existsSync(expandHome(item.root));
+		return folderInstalled(expandHome(item.path ?? ''), existsSync);
 	}
 
 	/** Columns of agents and projects available on this computer. */

@@ -118,7 +118,7 @@ export class ProjectModal extends Modal {
 		const d = this.draft;
 		const f = this.fields;
 		const others = this.opts.projects.filter((p) => p !== this.opts.project);
-		const rootError = validateProjectFolder(d.root, { hubDir: this.opts.hubDir, others });
+		const rootError = validateProjectFolder(d.root, { hubDir: this.opts.hubDir, others, projectDirs: projectFolders(this.opts.agents).map((f) => f.dir) });
 		const nameError = d.label.trim() ? null : 'Required.';
 		const finalId = normalizeIdInput(d.id);
 		let idError: string | null = null;

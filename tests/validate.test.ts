@@ -88,7 +88,11 @@ describe('validateProjectFolder', () => {
 		expect(validateProjectFolder('relative/path', ctx)).toMatch(/absolute/);
 		expect(validateProjectFolder(join(real, 'missing'), ctx)).toMatch(/doesn't exist/);
 		expect(validateProjectFolder('/work/a', ctx)).toMatch(/already a project/);
-		expect(validateProjectFolder('/v', ctx)).toMatch(/vault/);
+		expect(validateProjectFolder('/v/Skills/x', ctx)).toMatch(/vault/);
+		expect(validateProjectFolder('/v/Skills', ctx)).toMatch(/vault/);
+		// a root containing the vault folder is fine unless a synced project folder would overlap it
+		expect(validateProjectFolder('/v', { ...ctx, projectDirs: ['.claude/skills'] })).toMatch(/^(?!.*vault).*$|doesn't exist/);
+		expect(validateProjectFolder('/v', { ...ctx, projectDirs: ['Skills'] })).toMatch(/overlap/);
 		expect(validateProjectFolder(real, ctx)).toBeNull();
 	});
 });

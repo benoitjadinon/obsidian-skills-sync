@@ -10,6 +10,7 @@ import { findSymlinks, migrate } from './migrate';
 import type { AgentState, PluginMeta, SkillCopy, SkillGroup, SyncConfig } from './model';
 import { VAULT } from './model';
 import { agentPresent, exists, scanAgent, scanVault } from './scan';
+import { isAgentForDevice } from './agentNotes';
 import { validateSkillName } from './validate';
 
 export interface ConflictRequest {
@@ -61,7 +62,10 @@ export function labelsFor(cfg: SyncConfig): Record<string, string> {
 
 export async function liveConfig(cfg: SyncConfig): Promise<SyncConfig> {
 	const agents = [];
-	for (const a of cfg.agents) if (await agentPresent(a)) agents.push(a);
+	for (const a of cfg.agents) {
+		if (cfg.currentDevice && !isAgentForDevice(a, cfg.currentDevice)) continue;
+		if (await agentPresent(a)) agents.push(a);
+	}
 	return { ...cfg, agents };
 }
 

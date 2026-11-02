@@ -1,7 +1,25 @@
 import { parse as parseYaml } from 'yaml';
 import { RESERVED } from './frontmatter';
 import type { AgentConfig, Layout } from './model';
-import { presetsFor } from './agents';
+import { expandHome, folderInstalled, presetsFor } from './agents';
+
+/** Whether an agent config applies to the given device (true if shared/all or matches). */
+export function isAgentForDevice(agent: AgentConfig, currentDevice?: string): boolean {
+	if (!currentDevice) return true;
+	if (!agent.devices || agent.devices.length === 0) return true;
+	return agent.devices.includes(currentDevice);
+}
+
+/** Whether an agent is available on this computer (device matches AND folder/parent exists). */
+export function isAgentAvailable(
+	agent: AgentConfig,
+	currentDevice: string | undefined,
+	exists: (p: string) => boolean,
+	home?: string,
+): boolean {
+	if (!isAgentForDevice(agent, currentDevice)) return false;
+	return folderInstalled(expandHome(agent.path, home), exists, home);
+}
 
 /** Bare key used for stateKey (without propPrefix). */
 export function stateKeyForAgent(id: string, devices?: string[]): string {

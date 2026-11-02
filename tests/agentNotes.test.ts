@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatAgentNote, parseAgentNote, stateKeyForAgent } from '../src/core/agentNotes';
+import { formatAgentNote, isAgentAvailable, isAgentForDevice, parseAgentNote, stateKeyForAgent } from '../src/core/agentNotes';
 import type { AgentConfig } from '../src/core/model';
 
 describe('stateKeyForAgent', () => {
@@ -133,3 +133,57 @@ describe('formatAgentNote', () => {
 		expect(reparsed?.stateKey).toBe('codex-macbook');
 	});
 });
+
+describe('isAgentForDevice', () => {
+	const agentWith = (devices?: string[]): AgentConfig => ({
+		id: 'test',
+		label: 'test',
+		path: '~/.test',
+		kind: 'agent',
+		layout: 'flat',
+		archiveDir: '',
+		devices,
+	});
+
+	it('returns true when currentDevice is undefined', () => {
+		expect(isAgentForDevice(agentWith(['macbook']))).toBe(true);
+	});
+
+	it('returns true for shared agents (no devices or empty array)', () => {
+		expect(isAgentForDevice(agentWith(), 'macbook')).toBe(true);
+		expect(isAgentForDevice(agentWith([]), 'macbook')).toBe(true);
+	});
+
+	it('returns true when currentDevice matches', () => {
+		expect(isAgentForDevice(agentWith(['macbook']), 'macbook')).toBe(true);
+		expect(isAgentForDevice(agentWith(['desktop', 'macbook']), 'macbook')).toBe(true);
+	});
+
+	it('returns false when currentDevice does not match', () => {
+		expect(isAgentForDevice(agentWith(['desktop']), 'macbook')).toBe(false);
+	});
+});
+
+describe('isAgentAvailable', () => {
+	it('checks both device match and folder existence', () => {
+		const agent: AgentConfig = {
+			id: 'test',
+			label: 'test',
+			path: '/mock/path/skills',
+			kind: 'agent',
+			layout: 'flat',
+			archiveDir: '',
+			devices: ['macbook'],
+		};
+		const existsTrue = () => true;
+		const existsFalse = () => false;
+
+		// Matches device and folder exists
+		expect(isAgentAvailable(agent, 'macbook', existsTrue)).toBe(true);
+		// Wrong device even if folder exists
+		expect(isAgentAvailable(agent, 'desktop', existsTrue)).toBe(false);
+		// Matches device but folder missing
+		expect(isAgentAvailable(agent, 'macbook', existsFalse)).toBe(false);
+	});
+});
+

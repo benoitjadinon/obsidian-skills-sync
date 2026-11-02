@@ -1,12 +1,13 @@
 import { FileSystemAdapter, normalizePath, Notice, Plugin, TAbstractFile, TFile, TFolder } from 'obsidian';
 import { join, relative, sep } from 'path';
-import { contractHome, detectPresets, folderInstalled, expandHome, inferPreset, presetsFor } from './core/agents';
-import { type BaseOptions, defaultBase, ensureAgentColumns, isUnavailableColumn, listTableViews, removeAgentColumn } from './core/base';
+import { hostname } from 'os';
+import { contractHome, expandHome } from './core/agents';
+import { type BaseOptions, defaultAgentsBase, defaultBase, ensureAgentColumns, ensureAgentsBase, isUnavailableColumn, listTableViews, removeAgentColumn } from './core/base';
 import { mergeOnSave, migrateSettings } from './core/settingsStore';
 import { existsSync } from 'fs';
 import { resolveConflictFiles } from './core/conflictFiles';
 import { hasMarkers } from './core/merge';
-import type { SyncConfig } from './core/model';
+import type { AgentConfig, SyncConfig } from './core/model';
 import { isConflictFile } from './core/scan';
 import { projectColumns, switchStates, syncTargets } from './core/projects';
 import { type SyncReport, createSkill, deleteEverywhere, previewUndecided, removeAgentFromNotes, resetUndecided, rewriteStates, fillMissingSources, findAgentCopies, removeFromAgents, runSync } from './core/sync';
@@ -14,6 +15,7 @@ import { Watcher } from './core/watcher';
 import { DEFAULT_SETTINGS, type HubSettings, HubSettingTab } from './settings';
 import { ObsidianResolver } from './ui/resolver';
 import { ConfirmModal, NewSkillModal } from './ui/simpleModals';
+import { isAgentAvailable, parseAgentNote } from './core/agentNotes';
 
 /** Per-computer settings in Obsidian's per-device storage (never synced with the vault). */
 const LOCAL_KEY = 'skills-sync-local';
@@ -24,6 +26,7 @@ interface LocalSettings {
 	mergeCommand: string;
 	/** This computer's installed agents were already added to the shared list. */
 	detected: boolean;
+	deviceName?: string;
 }
 
 interface MetadataTypeManager {
@@ -44,41 +47,10 @@ export default class AgentSkillsHub extends Plugin {
 	private quietUntil = 0;
 	private vaultTimer: number | null = null;
 	private resolver!: ObsidianResolver;
+	private agents: AgentConfig[] = [];
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
-		// Remember which agents came from a preset (settings saved before the field existed).
-		let migrated = false;
-		const known = presetsFor();
-		for (const a of this.settings.agents) {
-			if (a.kind !== 'agent') continue;
-			if (!a.preset) {
-				const preset = inferPreset(a);
-				if (preset) {
-					a.preset = preset;
-					migrated = true;
-				}
-			}
-			// Agents saved before project folders existed get their preset's project skills folder.
-			if (a.projectDir === undefined && a.preset) {
-				const projectDir = known.find((p) => p.id === a.preset)?.projectDir;
-				if (projectDir) {
-					a.projectDir = projectDir;
-					migrated = true;
-				}
-			}
-		}
-		// First start on this computer: add its installed agents to the shared list.
-		const local = this.local();
-		if (!local.detected) {
-			for (const a of detectPresets()) {
-				const path = expandHome(a.path);
-				if (!this.settings.agents.some((x) => x.id === a.id || expandHome(x.path) === path)) this.settings.agents.push(a);
-			}
-			this.saveLocal({ ...local, detected: true });
-			migrated = true;
-		}
-		if (migrated || this.migrated) await this.saveSettings();
 		this.resolver = new ObsidianResolver(this.app, {
 			getConfig: () => this.config(),
 			mergeCommand: () => this.settings.mergeCommand,
@@ -100,7 +72,9 @@ export default class AgentSkillsHub extends Plugin {
 			callback: () => new NewSkillModal(this.app, this.skillNames(), (n, d) => void this.newSkill(n, d)).open(),
 		});
 		this.addCommand({ id: 'create-base', name: 'Create or update the skills base', callback: () => void this.ensureBase(true) });
+		this.addCommand({ id: 'create-agents-base', name: 'Create or update the agents base', callback: () => void this.ensureAgentsBase(true) });
 		this.addCommand({ id: 'fill-missing-sources', name: 'Fill in missing skill sources', callback: () => void this.fillSources() });
+
 		this.addCommand({
 			id: 'delete-skill-everywhere', name: 'Delete current skill everywhere',
 			checkCallback: (checking) => {
@@ -136,11 +110,47 @@ export default class AgentSkillsHub extends Plugin {
 
 	private local(): LocalSettings {
 		const saved = this.app.loadLocalStorage(LOCAL_KEY) as Partial<LocalSettings> | null;
-		return { mergeCommand: saved?.mergeCommand ?? '', detected: saved?.detected ?? false };
+		const defaultDevice = hostname().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+		return {
+			mergeCommand: saved?.mergeCommand ?? '',
+			detected: saved?.detected ?? false,
+			deviceName: saved?.deviceName || defaultDevice,
+		};
 	}
 
 	private saveLocal(local: LocalSettings): void {
 		this.app.saveLocalStorage(LOCAL_KEY, local);
+	}
+
+	currentDevice(): string {
+		return this.local().deviceName || '';
+	}
+
+	saveDeviceName(name: string): void {
+		this.saveLocal({ ...this.local(), deviceName: name.trim() });
+		this.updateGreying();
+	}
+
+	getAgents(): AgentConfig[] {
+		return this.agents;
+	}
+
+	async reloadAgentNotes(): Promise<void> {
+		const folderPath = normalizePath(this.settings.agentsFolder);
+		const folder = this.app.vault.getAbstractFileByPath(folderPath);
+		if (!(folder instanceof TFolder)) {
+			this.agents = [];
+			return;
+		}
+		const out: AgentConfig[] = [];
+		for (const child of folder.children) {
+			if (child instanceof TFile && child.extension === 'md') {
+				const content = await this.app.vault.cachedRead(child);
+				const agent = parseAgentNote(content, child.name);
+				if (agent) out.push(agent);
+			}
+		}
+		this.agents = out;
 	}
 
 	async loadSettings(): Promise<void> {
@@ -189,18 +199,36 @@ export default class AgentSkillsHub extends Plugin {
 		return normalizePath(this.settings.basePath);
 	}
 
+	agentsBasePath(): string {
+		return normalizePath(this.settings.agentsBasePath);
+	}
+
+	async ensureAgentsBase(open = false): Promise<void> {
+		const s = this.settings;
+		const path = this.agentsBasePath();
+		let file = this.app.vault.getAbstractFileByPath(path);
+		if (file instanceof TFile) {
+			await this.app.vault.process(file, (t) => ensureAgentsBase(t, normalizePath(s.agentsFolder), s.propPrefix));
+		} else {
+			const dir = path.split('/').slice(0, -1).join('/');
+			if (dir && !this.app.vault.getAbstractFileByPath(dir)) await this.app.vault.createFolder(dir);
+			file = await this.app.vault.create(path, defaultAgentsBase(normalizePath(s.agentsFolder), s.propPrefix));
+		}
+		if (open && file instanceof TFile) await this.app.workspace.getLeaf(false).openFile(file);
+	}
+
 	/** Whether an agent or project can sync on this computer (its folder exists here). */
-	isAvailable(item: { path?: string; root?: string }): boolean {
+	isAvailable(item: { path?: string; root?: string; devices?: string[] }): boolean {
 		if (item.root) return existsSync(expandHome(item.root));
-		return folderInstalled(expandHome(item.path ?? ''), existsSync);
+		return isAgentAvailable(item as AgentConfig, this.currentDevice(), existsSync);
 	}
 
 	/** Columns of agents and projects available on this computer. */
 	availableColumns(): string[] {
 		const s = this.settings;
 		return [
-			...s.agents.filter((a) => this.isAvailable(a)).map((a) => a.id),
-			...s.projects.filter((p) => this.isAvailable(p)).flatMap((p) => projectColumns(p, s.agents).map((c) => c.id)),
+			...this.agents.filter((a) => this.isAvailable(a)).map((a) => a.stateKey ?? a.id),
+			...s.projects.filter((p) => this.isAvailable(p)).flatMap((p) => projectColumns(p, this.agents).map((c) => c.id)),
 		];
 	}
 
@@ -238,6 +266,8 @@ export default class AgentSkillsHub extends Plugin {
 	}
 
 	private async startup(): Promise<void> {
+		await this.reloadAgentNotes();
+		await this.ensureAgentsBase(false);
 		await this.restoreBaseName();
 		this.registerPropertyTypes();
 		this.updateGreying();
@@ -269,7 +299,8 @@ export default class AgentSkillsHub extends Plugin {
 		return {
 			hubDir: join(this.vaultBase(), normalizePath(s.hubFolder)),
 			prefix: s.propPrefix,
-			agents: syncTargets(s.agents.map((a) => ({ ...a, path: expandHome(a.path) })), s.projects),
+			agents: syncTargets(this.agents.map((a) => ({ ...a, path: expandHome(a.path) })), s.projects),
+			currentDevice: this.currentDevice(),
 			autoPullExternal: s.autoPullExternal,
 			deleted: this.recentDeletions().map((d) => d.id),
 		};
@@ -376,8 +407,30 @@ export default class AgentSkillsHub extends Plugin {
 		});
 	}
 
+	private agentsPrefix(): string {
+		return `${normalizePath(this.settings.agentsFolder)}/`;
+	}
+
 	private onVaultChange(f: TAbstractFile): void {
-		if (!f.path.startsWith(this.hubPrefix()) || this.busy) return;
+		if (this.busy) return;
+		if (f.path.startsWith(this.agentsPrefix())) {
+			if (!this.settings.autoSync || Date.now() < this.quietUntil) return;
+			if (this.vaultTimer !== null) window.clearTimeout(this.vaultTimer);
+			this.vaultTimer = window.setTimeout(() => {
+				this.vaultTimer = null;
+				void (async () => {
+					await this.reloadAgentNotes();
+					await this.ensureBase(false);
+					await this.ensureAgentsBase(false);
+					this.registerPropertyTypes();
+					this.restartWatcher();
+					this.updateGreying();
+					void this.sync();
+				})();
+			}, 1500);
+			return;
+		}
+		if (!f.path.startsWith(this.hubPrefix())) return;
 		if (f instanceof TFile && isConflictFile(f.name)) {
 			void this.autoResolve(f);
 			return;
@@ -399,7 +452,18 @@ export default class AgentSkillsHub extends Plugin {
 	}
 
 	private async onVaultDelete(f: TAbstractFile): Promise<void> {
-		if (this.busy || Date.now() < this.quietUntil || !f.path.startsWith(this.hubPrefix())) return;
+		if (this.busy || Date.now() < this.quietUntil) return;
+		if (f.path.startsWith(this.agentsPrefix())) {
+			await this.reloadAgentNotes();
+			await this.ensureBase(false);
+			await this.ensureAgentsBase(false);
+			this.registerPropertyTypes();
+			this.restartWatcher();
+			this.updateGreying();
+			void this.sync();
+			return;
+		}
+		if (!f.path.startsWith(this.hubPrefix())) return;
 		const parts = f.path.slice(this.hubPrefix().length).split('/');
 		const name = parts[0];
 		if (!name || !(parts.length === 1 || (parts.length === 2 && parts[1] === 'SKILL.md'))) return;
@@ -544,8 +608,8 @@ export default class AgentSkillsHub extends Plugin {
 
 	/** Every checkbox column of the base: one per agent, then the projects' columns. */
 	columns(): { id: string; label: string }[] {
-		const agents = this.settings.agents;
-		return [...agents.map((a) => ({ id: a.id, label: a.label })), ...this.settings.projects.flatMap((p) => projectColumns(p, agents))];
+		const agents = this.agents;
+		return [...agents.map((a) => ({ id: a.stateKey ?? a.id, label: a.label })), ...this.settings.projects.flatMap((p) => projectColumns(p, agents))];
 	}
 
 	private registerPropertyTypes(): void {

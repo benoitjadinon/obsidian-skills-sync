@@ -168,15 +168,22 @@ export default class AgentSkillsHub extends Plugin {
 		this.loaded = structuredClone(this.settings);
 	}
 
+	private saveChain: Promise<void> = Promise.resolve();
+
 	async saveSettings(): Promise<void> {
-		this.saveLocal({ ...this.local(), mergeCommand: this.settings.mergeCommand });
-		// Merge with what is on disk now: another computer may have added agents or projects (git pull, Sync).
-		const stored = mergeOnSave(await this.loadData(), this.loaded, this.settings);
-		await this.saveData(stored);
-		this.settings = { ...stored, mergeCommand: this.settings.mergeCommand };
-		this.loaded = structuredClone(this.settings);
-		this.migrated = false;
-		this.updateGreying();
+		this.saveChain = this.saveChain.then(async () => {
+			this.saveLocal({ ...this.local(), mergeCommand: this.settings.mergeCommand });
+			const mine = { ...this.settings };
+			const stored = mergeOnSave(await this.loadData(), this.loaded, mine);
+			await this.saveData(stored);
+			this.settings = { ...this.settings, ...stored, mergeCommand: this.settings.mergeCommand };
+			this.loaded = structuredClone(this.settings);
+			this.migrated = false;
+			this.updateGreying();
+		}).catch((err) => {
+			console.error('[skills-sync] Failed to save settings', err);
+		});
+		await this.saveChain;
 	}
 
 	/** data.json changed on disk (e.g. the other computer's settings arrived): reload. */

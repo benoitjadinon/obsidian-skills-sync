@@ -235,7 +235,9 @@ views:
     order:
       - file.name
 `;
-		const updated = parse(ensureAgentsBase(minimal, 'Agents')) as Base;
+		const updated = parse(ensureAgentsBase(minimal, 'AI/agents')) as Base;
+		expect(updated.filters.and).toContain('file.inFolder("AI/agents")');
+		expect(updated.filters.and).not.toContain('file.inFolder("Agents")');
 		expect(updated.filters.and).toContain('file.ext == "md"');
 		expect(updated.filters.and).toContain('file.hasProperty("agent-id")');
 		expect(updated.properties['note.agent-id']?.displayName).toBe('ID');

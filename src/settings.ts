@@ -101,14 +101,30 @@ export class HubSettingTab extends PluginSettingTab {
 			})));
 		addFolderBrowse(hub, () => hubText, 'Skills folder', { toAbs: (v) => this.vaultAbsolute(v), fromAbs: (abs) => this.vaultRelative(abs) });
 
+		let baseText: TextComponent | undefined;
 		const base = new Setting(containerEl)
 			.setName('Skills base file')
 			.setDesc('Vault path ending in .base, shared by every computer. Created if missing; an existing base gets the missing columns.');
-		base.addText((t) => t.setValue(s.basePath).onChange((v) => this.saveIfValid(base, t, validateBasePath(v), async () => {
+		base.addText((t) => (baseText = t).setValue(s.basePath).onChange((v) => this.saveIfValid(base, t, validateBasePath(v), async () => {
 			s.basePath = normalizePath(v.trim());
 			await this.renderViewOptions();
 		})))
 			.addButton((b) => b.setButtonText('Create or update').onClick(async () => {
+				if (hubText) {
+					const hVal = hubText.getValue();
+					const hErr = validateHubFolder(hVal);
+					showFieldError(hub, hubText, hErr);
+					if (hErr) return;
+					s.hubFolder = normalizePath(hVal.trim());
+				}
+				if (baseText) {
+					const bVal = baseText.getValue();
+					const bErr = validateBasePath(bVal);
+					showFieldError(base, baseText, bErr);
+					if (bErr) return;
+					s.basePath = normalizePath(bVal.trim());
+				}
+				await this.plugin.saveSettings();
 				await this.plugin.ensureBase(true);
 				await this.renderViewOptions();
 			}));
@@ -130,18 +146,34 @@ export class HubSettingTab extends PluginSettingTab {
 		const agentsFolder = new Setting(containerEl)
 			.setName('Agents folder')
 			.setDesc('Vault folder holding agent Markdown notes.')
-			.addText((t) => (agentsText = t).setValue(s.agentsFolder).onChange((v) => this.saveIfValid(agentsFolder, t, v.trim() ? null : 'Required.', () => {
+			.addText((t) => (agentsText = t).setValue(s.agentsFolder).onChange((v) => this.saveIfValid(agentsFolder, t, validateHubFolder(v), () => {
 				s.agentsFolder = normalizePath(v.trim());
 			})));
 		addFolderBrowse(agentsFolder, () => agentsText, 'Agents folder', { toAbs: (v) => this.vaultAbsolute(v), fromAbs: (abs) => this.vaultRelative(abs) });
 
+		let agentsBaseText: TextComponent | undefined;
 		const agentsBase = new Setting(containerEl)
 			.setName('Agents base file')
 			.setDesc('Vault path ending in .base for the agents database view.')
-			.addText((t) => t.setValue(s.agentsBasePath).onChange((v) => this.saveIfValid(agentsBase, t, validateBasePath(v), () => {
+			.addText((t) => (agentsBaseText = t).setValue(s.agentsBasePath).onChange((v) => this.saveIfValid(agentsBase, t, validateBasePath(v), () => {
 				s.agentsBasePath = normalizePath(v.trim());
 			})))
 			.addButton((b) => b.setButtonText('Create or update').onClick(async () => {
+				if (agentsText) {
+					const fVal = agentsText.getValue();
+					const fErr = validateHubFolder(fVal);
+					showFieldError(agentsFolder, agentsText, fErr);
+					if (fErr) return;
+					s.agentsFolder = normalizePath(fVal.trim());
+				}
+				if (agentsBaseText) {
+					const bVal = agentsBaseText.getValue();
+					const bErr = validateBasePath(bVal);
+					showFieldError(agentsBase, agentsBaseText, bErr);
+					if (bErr) return;
+					s.agentsBasePath = normalizePath(bVal.trim());
+				}
+				await this.plugin.saveSettings();
 				await this.plugin.ensureAgentsBase(true);
 			}));
 		new Setting(containerEl)

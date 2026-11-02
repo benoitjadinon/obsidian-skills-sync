@@ -178,12 +178,13 @@ export function ensureAgentsBase(text: string, agentsFolder: string, prefix: str
 	const doc = parseDocument(text);
 	const extFilter = 'file.ext == "md"';
 	const propFilter = `file.hasProperty(${JSON.stringify(`${prefix}id`)})`;
+	const folderFilter = `file.inFolder(${JSON.stringify(agentsFolder)})`;
 	const filters = doc.get('filters');
 	if (!filters) {
 		doc.set(
 			'filters',
 			doc.createNode({
-				and: [`file.inFolder(${JSON.stringify(agentsFolder)})`, extFilter, propFilter],
+				and: [folderFilter, extFilter, propFilter],
 			}),
 		);
 	} else if (isMap(filters)) {
@@ -193,6 +194,21 @@ export function ensureAgentsBase(text: string, agentsFolder: string, prefix: str
 			filters.set('and', andSeq);
 		}
 		if (isSeq(andSeq)) {
+			const folderIndices: number[] = [];
+			for (let i = 0; i < andSeq.items.length; i++) {
+				const item = andSeq.items[i];
+				const val = String(isScalar(item) ? item.value : item);
+				if (val.startsWith('file.inFolder(')) folderIndices.push(i);
+			}
+			if (folderIndices.length > 0) {
+				andSeq.items[folderIndices[0]!] = doc.createNode(folderFilter);
+				for (let i = folderIndices.length - 1; i > 0; i--) {
+					andSeq.items.splice(folderIndices[i]!, 1);
+				}
+			} else {
+				andSeq.items.unshift(doc.createNode(folderFilter));
+			}
+
 			const items = andSeq.items.map((i) => String(isScalar(i) ? i.value : i));
 			if (!items.includes(extFilter)) {
 				andSeq.add(doc.createNode(extFilter));

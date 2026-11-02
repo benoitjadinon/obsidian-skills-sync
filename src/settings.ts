@@ -85,6 +85,13 @@ export class HubSettingTab extends PluginSettingTab {
 				this.plugin.saveDeviceName(v);
 			}));
 
+		const prefix = new Setting(containerEl)
+			.setName('Property prefix')
+			.setDesc('Prefix of the plugin properties, for example agent-. Changing it later orphans existing properties.');
+		prefix.addText((t) => t.setValue(s.propPrefix).onChange((v) => this.saveIfValid(prefix, t, validatePrefix(v), () => {
+			s.propPrefix = v;
+		})));
+
 		let hubText: TextComponent | undefined;
 		const hub = new Setting(containerEl)
 			.setName('Skills folder')
@@ -93,12 +100,7 @@ export class HubSettingTab extends PluginSettingTab {
 				s.hubFolder = normalizePath(v.trim());
 			})));
 		addFolderBrowse(hub, () => hubText, 'Skills folder', { toAbs: (v) => this.vaultAbsolute(v), fromAbs: (abs) => this.vaultRelative(abs) });
-		const prefix = new Setting(containerEl)
-			.setName('Property prefix')
-			.setDesc('Prefix of the per-agent checkbox properties, for example agent-. Changing it later orphans existing properties.');
-		prefix.addText((t) => t.setValue(s.propPrefix).onChange((v) => this.saveIfValid(prefix, t, validatePrefix(v), () => {
-			s.propPrefix = v;
-		})));
+
 		const base = new Setting(containerEl)
 			.setName('Skills base file')
 			.setDesc('Vault path ending in .base, shared by every computer. Created if missing; an existing base gets the missing columns.');
@@ -110,6 +112,19 @@ export class HubSettingTab extends PluginSettingTab {
 				await this.plugin.ensureBase(true);
 				await this.renderViewOptions();
 			}));
+
+		this.viewSetting = new Setting(containerEl)
+			.setName('Skills base view')
+			.setDesc('The view in the skills base that gets the agent and project columns. Your other views are left alone.')
+			.addDropdown((d) => {
+				this.viewDropdown = d;
+				d.onChange(async (v) => {
+					s.baseView = v;
+					await this.plugin.saveSettings();
+					await this.plugin.ensureBase();
+				});
+			});
+		void this.renderViewOptions();
 
 		let agentsText: TextComponent | undefined;
 		const agentsFolder = new Setting(containerEl)
@@ -129,18 +144,6 @@ export class HubSettingTab extends PluginSettingTab {
 			.addButton((b) => b.setButtonText('Create or update').onClick(async () => {
 				await this.plugin.ensureAgentsBase(true);
 			}));
-		this.viewSetting = new Setting(containerEl)
-			.setName('View')
-			.setDesc('The base view that gets the agent and project columns. Your other views are left alone.')
-			.addDropdown((d) => {
-				this.viewDropdown = d;
-				d.onChange(async (v) => {
-					s.baseView = v;
-					await this.plugin.saveSettings();
-					await this.plugin.ensureBase();
-				});
-			});
-		void this.renderViewOptions();
 		new Setting(containerEl)
 			.setName('Sync automatically')
 			.setDesc('Sync on startup, when agent folders change, and when skills are edited in the vault.')

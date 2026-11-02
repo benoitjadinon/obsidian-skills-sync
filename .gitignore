@@ -24,3 +24,4 @@ data.json
 # Local design/planning notes (not published)
 docs/superpowers/
 .hotreload
+.direnv/

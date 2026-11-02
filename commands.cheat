@@ -1,0 +1,21 @@
+% obsidian-skills-sync, dev
+
+# Run development watcher with live rebuild
+npm run dev
+
+# Run unit tests
+npm run test
+
+# Run ESLint check
+npm run lint
+
+# Update bundled agent skill presets
+npm run presets:update
+
+% obsidian-skills-sync, build
+
+# Typecheck and build production bundle
+npm run build
+
+# Bump version and stage manifest and versions JSON
+npm run version

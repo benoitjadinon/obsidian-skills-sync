@@ -16,6 +16,7 @@ export const MERGE_TOOL_PRESETS: { id: string; label: string; command: string }[
 	{ id: 'kaleidoscope', label: 'Kaleidoscope', command: 'ksdiff --merge --output {result} --base {base} {ours} {theirs}' },
 	{ id: 'meld', label: 'Meld', command: 'meld {ours} {base} {theirs} --output {result}' },
 	// JetBrains IDEs need their command-line launcher (Toolbox → Settings → Shell scripts, or Tools → Create Command-line Launcher).
+	{ id: 'rebased', label: 'Rebased', command: 'rebased merge {ours} {theirs} {base} {result}' },
 	{ id: 'intellij', label: 'IntelliJ IDEA', command: 'idea merge {ours} {theirs} {base} {result}' },
 	{ id: 'webstorm', label: 'WebStorm', command: 'webstorm merge {ours} {theirs} {base} {result}' },
 ];

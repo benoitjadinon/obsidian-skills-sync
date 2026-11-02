@@ -170,7 +170,7 @@ export class HubSettingTab extends PluginSettingTab {
 		const merge = new Setting(containerEl)
 			.setClass('ash-stacked')
 			.setName('Merge tool')
-			.setDesc('Optional. Lets the conflict dialog open the merge in another app; without one, conflicts are resolved in Obsidian. Pick an app to fill in its command, or type your own with the placeholders {ours} {base} {theirs} {result}. IntelliJ IDEA and WebStorm need their command-line launcher enabled; use an absolute path if a tool is not found.')
+			.setDesc('Optional. Lets the conflict dialog open the merge in another app; without one, conflicts are resolved in Obsidian. Pick an app to fill in its command, or type your own with the placeholders {ours} {base} {theirs} {result}. Rebased, IntelliJ IDEA, and WebStorm need their command-line launcher enabled; use an absolute path if a tool is not found.')
 			.addDropdown((d) => {
 				mergeDropdown = d;
 				d.addOption('', 'None');

@@ -162,7 +162,13 @@ export function defaultAgentsBase(agentsFolder: string, prefix: string = 'agent-
 		[`note.${prefix}availability`]: { displayName: 'Availability' },
 	};
 	return stringify({
-		filters: { and: [`file.inFolder(${JSON.stringify(agentsFolder)})`] },
+		filters: {
+			and: [
+				`file.inFolder(${JSON.stringify(agentsFolder)})`,
+				'file.ext == "md"',
+				`file.hasProperty(${JSON.stringify(`${prefix}id`)})`,
+			],
+		},
 		properties,
 		views: [{ type: 'table', name: 'All agents', order }],
 	});
@@ -170,6 +176,34 @@ export function defaultAgentsBase(agentsFolder: string, prefix: string = 'agent-
 
 export function ensureAgentsBase(text: string, agentsFolder: string, prefix: string = 'agent-'): string {
 	const doc = parseDocument(text);
+	const extFilter = 'file.ext == "md"';
+	const propFilter = `file.hasProperty(${JSON.stringify(`${prefix}id`)})`;
+	const filters = doc.get('filters');
+	if (!filters) {
+		doc.set(
+			'filters',
+			doc.createNode({
+				and: [`file.inFolder(${JSON.stringify(agentsFolder)})`, extFilter, propFilter],
+			}),
+		);
+	} else if (isMap(filters)) {
+		let andSeq = filters.get('and');
+		if (!andSeq) {
+			andSeq = doc.createNode([]);
+			filters.set('and', andSeq);
+		}
+		if (isSeq(andSeq)) {
+			const items = andSeq.items.map((i) => String(isScalar(i) ? i.value : i));
+			if (!items.includes(extFilter)) {
+				andSeq.add(doc.createNode(extFilter));
+			}
+			const hasPropCheck = items.some((i) => i.includes('file.hasProperty(') && i.includes(`${prefix}id`));
+			if (!hasPropCheck) {
+				andSeq.add(doc.createNode(propFilter));
+			}
+		}
+	}
+
 	const columns = [
 		{ id: `${prefix}id`, label: 'ID' },
 		{ id: `${prefix}device`, label: 'Device' },

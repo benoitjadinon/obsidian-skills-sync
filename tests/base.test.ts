@@ -214,7 +214,7 @@ describe('To Delete display name', () => {
 describe('defaultAgentsBase', () => {
 	it('creates base filtering to agentsFolder with standard agent columns', () => {
 		const b = parse(defaultAgentsBase('Agents')) as Base;
-		expect(b.filters.and).toEqual(['file.inFolder("Agents")']);
+		expect(b.filters.and).toEqual(['file.inFolder("Agents")', 'file.ext == "md"', 'file.hasProperty("agent-id")']);
 		expect(b.properties['note.agent-id']?.displayName).toBe('ID');
 		expect(b.properties['note.agent-device']?.displayName).toBe('Device');
 		expect(b.properties['note.agent-path']?.displayName).toBe('Path');
@@ -225,7 +225,7 @@ describe('defaultAgentsBase', () => {
 });
 
 describe('ensureAgentsBase', () => {
-	it('adds missing properties and columns to existing base', () => {
+	it('adds missing properties and columns to existing base and upgrades filters', () => {
 		const minimal = `filters:
   and:
     - file.inFolder("Agents")
@@ -236,6 +236,8 @@ views:
       - file.name
 `;
 		const updated = parse(ensureAgentsBase(minimal, 'Agents')) as Base;
+		expect(updated.filters.and).toContain('file.ext == "md"');
+		expect(updated.filters.and).toContain('file.hasProperty("agent-id")');
 		expect(updated.properties['note.agent-id']?.displayName).toBe('ID');
 		expect(updated.properties['note.agent-availability']?.displayName).toBe('Availability');
 		expect(updated.views[0]?.order).toContain('agent-id');

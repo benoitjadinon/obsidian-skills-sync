@@ -1,6 +1,6 @@
-import { App, type DropdownComponent, FileSystemAdapter, normalizePath, Notice, PluginSettingTab, Setting, type TextComponent } from 'obsidian';
+import { App, type DropdownComponent, FileSystemAdapter, normalizePath, Notice, PluginSettingTab, Setting, type TextComponent, TFile } from 'obsidian';
 import { isAbsolute, join, relative, sep } from 'path';
-import { inferPreset, sortAgentsForList } from './core/agents';
+import { detectPresets, expandHome, inferPreset, sortAgentsForList } from './core/agents';
 import type { AgentConfig, ProjectConfig } from './core/model';
 import type AgentSkillsHub from './main';
 import { AgentModal } from './ui/AgentModal';
@@ -11,6 +11,7 @@ import { addFolderBrowse } from './ui/folderPicker';
 import { MERGE_TOOL_PRESETS } from './core/externalMerge';
 import { validateBasePath, validateHubFolder, validateMergeCommand, validatePrefix } from './core/validate';
 import { RemoveAgentModal } from './ui/simpleModals';
+import { formatAgentNote, isAgentForDevice } from './core/agentNotes';
 
 export { DEFAULT_SETTINGS, type HubSettings } from './core/settingsStore';
 
@@ -77,6 +78,13 @@ export class HubSettingTab extends PluginSettingTab {
 		containerEl.empty();
 		containerEl.addClass('ash-settings');
 
+		new Setting(containerEl)
+			.setName("This computer's name")
+			.setDesc('Identifier for this device (saved locally on this machine). Used to match agents configured for this computer.')
+			.addText((t) => t.setValue(this.plugin.currentDevice()).onChange((v) => {
+				this.plugin.saveDeviceName(v);
+			}));
+
 		let hubText: TextComponent | undefined;
 		const hub = new Setting(containerEl)
 			.setName('Skills folder')
@@ -92,7 +100,7 @@ export class HubSettingTab extends PluginSettingTab {
 			s.propPrefix = v;
 		})));
 		const base = new Setting(containerEl)
-			.setName('Base file')
+			.setName('Skills base file')
 			.setDesc('Vault path ending in .base, shared by every computer. Created if missing; an existing base gets the missing columns.');
 		base.addText((t) => t.setValue(s.basePath).onChange((v) => this.saveIfValid(base, t, validateBasePath(v), async () => {
 			s.basePath = normalizePath(v.trim());
@@ -101,6 +109,25 @@ export class HubSettingTab extends PluginSettingTab {
 			.addButton((b) => b.setButtonText('Create or update').onClick(async () => {
 				await this.plugin.ensureBase(true);
 				await this.renderViewOptions();
+			}));
+
+		let agentsText: TextComponent | undefined;
+		const agentsFolder = new Setting(containerEl)
+			.setName('Agents folder')
+			.setDesc('Vault folder holding agent Markdown notes.')
+			.addText((t) => (agentsText = t).setValue(s.agentsFolder).onChange((v) => this.saveIfValid(agentsFolder, t, v.trim() ? null : 'Required.', () => {
+				s.agentsFolder = normalizePath(v.trim());
+			})));
+		addFolderBrowse(agentsFolder, () => agentsText, 'Agents folder', { toAbs: (v) => this.vaultAbsolute(v), fromAbs: (abs) => this.vaultRelative(abs) });
+
+		const agentsBase = new Setting(containerEl)
+			.setName('Agents base file')
+			.setDesc('Vault path ending in .base for the agents database view.')
+			.addText((t) => t.setValue(s.agentsBasePath).onChange((v) => this.saveIfValid(agentsBase, t, validateBasePath(v), () => {
+				s.agentsBasePath = normalizePath(v.trim());
+			})))
+			.addButton((b) => b.setButtonText('Create or update').onClick(async () => {
+				await this.plugin.ensureAgentsBase(true);
 			}));
 		this.viewSetting = new Setting(containerEl)
 			.setName('View')
@@ -168,16 +195,17 @@ export class HubSettingTab extends PluginSettingTab {
 
 	private renderProjects(el: HTMLElement): void {
 		const s = this.plugin.settings;
+		const agents = this.plugin.getAgents();
 		new Setting(el)
 			.setName('Projects')
 			.setHeading()
 			.addButton((b) => b.setButtonText('Add project…').onClick(() => this.openProjectForm()));
-		const folders = projectFolders(s.agents);
+		const folders = projectFolders(agents);
 		if (s.projects.length === 0) {
 			el.createEl('p', { cls: 'setting-item-description', text: 'No projects yet. A project syncs skills into the skills folders your agents read inside a code project.' });
 		}
 		for (const p of [...s.projects].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }))) {
-			const columns = projectColumns(p, s.agents);
+			const columns = projectColumns(p, agents);
 			const available = this.plugin.isAvailable(p);
 			const mode = p.perAgentColumns ? `${columns.length} columns` : `${s.propPrefix}${p.id}`;
 			const row = new Setting(el)
@@ -202,17 +230,18 @@ export class HubSettingTab extends PluginSettingTab {
 
 	private openProjectForm(project?: ProjectConfig): void {
 		const s = this.plugin.settings;
+		const agents = this.plugin.getAgents();
 		new ProjectModal(this.app, {
 			project,
-			agents: s.agents,
+			agents,
 			projects: s.projects,
 			prefix: s.propPrefix,
 			hubDir: this.plugin.config().hubDir,
 			onSave: async (saved) => {
 				if (project) {
-					const before = projectColumns(project, s.agents).map((c) => c.id);
+					const before = projectColumns(project, agents).map((c) => c.id);
 					Object.assign(project, saved);
-					const after = projectColumns(project, s.agents).map((c) => c.id);
+					const after = projectColumns(project, agents).map((c) => c.id);
 					if (before.join() !== after.join()) await this.plugin.switchColumns(before, after);
 				} else {
 					s.projects.push(saved);
@@ -225,53 +254,118 @@ export class HubSettingTab extends PluginSettingTab {
 	private renderList(el: HTMLElement, kind: 'agent'): void {
 		const s = this.plugin.settings;
 		new Setting(el)
-			.setName(kind === 'agent' ? 'Agents' : 'Projects')
+			.setName('Agents')
 			.setHeading()
 			.addButton((b) => b
-				.setButtonText(kind === 'agent' ? 'Add agent…' : 'Add project…')
+				.setButtonText('Add agent…')
 				.onClick(() => this.openForm(kind)));
-		const items = sortAgentsForList(s.agents);
+		const items = sortAgentsForList(this.plugin.getAgents());
 		if (items.length === 0) {
-			el.createEl('p', { cls: 'setting-item-description', text: kind === 'agent' ? 'No agents yet.' : 'No project skills folders yet.' });
+			el.createEl('p', { cls: 'setting-item-description', text: `No agents configured yet in ${s.agentsFolder}/.` });
 		}
 		for (const a of items) {
 			const layout = a.layout === 'nested' ? ' · category subfolders' : '';
 			const archive = a.archiveDir ? ` · archive ${a.archiveDir}` : '';
 			const available = this.plugin.isAvailable(a);
+			const deviceLabel = a.devices && a.devices.length > 0 ? a.devices.join(', ') : 'All devices';
 			const name = createFragment((f) => {
 				f.appendText(a.label);
 				const preset = inferPreset(a) !== undefined;
 				f.createSpan({ cls: `ash-tag ${preset ? 'ash-tag-preset' : 'ash-tag-custom'}`, text: preset ? 'Preset' : 'Custom' });
+				f.createSpan({ cls: 'ash-tag', text: deviceLabel });
 				if (!available) f.createSpan({ cls: 'ash-tag ash-tag-unavailable', text: 'Not available on this machine' });
 			});
 			const row = new Setting(el)
 				.setName(name)
-				.setDesc(`${a.path}${layout}${archive} · ${s.propPrefix}${a.id}`)
+				.setDesc(`${a.path}${layout}${archive} · ${s.propPrefix}${a.stateKey ?? a.id}`)
+				.addExtraButton((b) => b.setIcon('file-text').setTooltip('Open note').onClick(async () => {
+					const path = normalizePath(`${s.agentsFolder}/${a.label}.md`);
+					const file = this.app.vault.getAbstractFileByPath(path);
+					if (file instanceof TFile) await this.app.workspace.getLeaf(false).openFile(file);
+				}))
 				.addExtraButton((b) => b.setIcon('folder-sync').setTooltip('Resync with its folder…').setDisabled(!available).onClick(() => void this.plugin.adoptExisting(a.id, a.label)))
 				.addExtraButton((b) => b.setIcon('pencil').setTooltip('Edit').onClick(() => this.openForm(kind, a)))
 				.addExtraButton((b) => b.setIcon('trash').setTooltip('Remove').onClick(async () => {
-					const r = await new RemoveAgentModal(this.app, a.label, a.path, `${s.propPrefix}${a.id} property`).openAndWait();
+					const r = await new RemoveAgentModal(this.app, a.label, a.path, `${s.propPrefix}${a.stateKey ?? a.id} property`).openAndWait();
 					if (!r.confirmed) return;
-					s.agents = s.agents.filter((x) => x !== a);
-					await this.plugin.saveSettings();
-					if (r.removeProperties) await this.plugin.removeColumns([a.id]);
+					const path = normalizePath(`${s.agentsFolder}/${a.label}.md`);
+					const file = this.app.vault.getAbstractFileByPath(path);
+					if (file instanceof TFile) await this.app.fileManager.trashFile(file);
+					await this.plugin.reloadAgentNotes();
+					if (r.removeProperties) await this.plugin.removeColumns([a.stateKey ?? a.id]);
 					await this.changed();
 				}));
 			row.settingEl.toggleClass('ash-unavailable', !available);
 		}
+
+		// Detected presets on this computer
+		const detected = detectPresets();
+		const currentDev = this.plugin.currentDevice();
+		const configuredAgents = this.plugin.getAgents();
+		const unconfigured = detected.filter((p) => {
+			const path = expandHome(p.path);
+			return !configuredAgents.some((a) => (a.id === p.id || expandHome(a.path) === path) && isAgentForDevice(a, currentDev));
+		});
+		if (unconfigured.length > 0) {
+			new Setting(el)
+				.setName('Detected on this computer')
+				.setHeading();
+			for (const p of unconfigured) {
+				new Setting(el)
+					.setName(p.label)
+					.setDesc(p.path)
+					.addButton((b) => b.setButtonText('Add to agents').onClick(() => {
+						this.openForm('agent', {
+							...p,
+							devices: currentDev ? [currentDev] : undefined,
+						}, true);
+					}));
+			}
+		}
 	}
 
-	private openForm(kind: AgentConfig['kind'], agent?: AgentConfig): void {
+	private openForm(kind: AgentConfig['kind'], agent?: AgentConfig, isNewFromPreset = false): void {
 		const s = this.plugin.settings;
+		const agents = this.plugin.getAgents();
 		new AgentModal(this.app, {
 			agent,
+			isNew: isNewFromPreset,
 			kind,
-			existing: s.agents,
+			existing: agents,
 			prefix: s.propPrefix,
 			hubDir: this.plugin.config().hubDir,
-			onSave: async (saved) => {
-				if (agent) Object.assign(agent, saved);
-				else s.agents.push(saved);
+			agentsFolder: s.agentsFolder,
+			defaultDevice: this.plugin.currentDevice(),
+			onSave: async (saved, oldLabel) => {
+				const folder = normalizePath(s.agentsFolder);
+				const newPath = `${folder}/${saved.label}.md`;
+				let body = '';
+				if (oldLabel) {
+					const oldPath = `${folder}/${oldLabel}.md`;
+					const oldFile = this.app.vault.getAbstractFileByPath(oldPath);
+					if (oldFile instanceof TFile) {
+						const oldContent = await this.app.vault.read(oldFile);
+						const m = /^---\r?\n[\s\S]*?\r?\n---\r?\n?([\s\S]*)$/.exec(oldContent);
+						if (m && m[1]) body = m[1];
+						if (oldPath !== newPath) await this.app.fileManager.trashFile(oldFile);
+					}
+				}
+				const noteText = formatAgentNote(saved, body);
+				const existingNew = this.app.vault.getAbstractFileByPath(newPath);
+				if (existingNew instanceof TFile) {
+					await this.app.vault.modify(existingNew, noteText);
+				} else {
+					if (!this.app.vault.getAbstractFileByPath(folder)) await this.app.vault.createFolder(folder);
+					await this.app.vault.create(newPath, noteText);
+				}
+				await this.plugin.reloadAgentNotes();
+				await this.changed();
+			},
+			onDelete: async (target) => {
+				const path = normalizePath(`${s.agentsFolder}/${target.label}.md`);
+				const file = this.app.vault.getAbstractFileByPath(path);
+				if (file instanceof TFile) await this.app.fileManager.trashFile(file);
+				await this.plugin.reloadAgentNotes();
 				await this.changed();
 			},
 		}).open();

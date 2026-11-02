@@ -10,6 +10,8 @@ import { addFolderBrowse } from './folderPicker';
 export interface AgentModalOptions {
 	/** Agent being edited; omit to create a new one. */
 	agent?: AgentConfig;
+	/** Whether this is a new agent (e.g. prefilled from preset). */
+	isNew?: boolean;
 	/** Kind of a new entry (set by the list it is added from). */
 	kind: AgentConfig['kind'];
 	/** All configured agents (for validation and preset filtering). */
@@ -17,7 +19,10 @@ export interface AgentModalOptions {
 	prefix: string;
 	/** Absolute vault skills folder (an agent folder can't overlap it). */
 	hubDir: string;
-	onSave: (agent: AgentConfig) => Promise<void>;
+	agentsFolder: string;
+	defaultDevice: string;
+	onSave: (agent: AgentConfig, oldLabel?: string) => Promise<void>;
+	onDelete?: (agent: AgentConfig) => Promise<void>;
 }
 
 interface Field {
@@ -30,19 +35,30 @@ export class AgentModal extends Modal {
 	private draft: AgentConfig;
 	private readonly creating: boolean;
 	private idTouched = false;
-	private fields: Record<'name' | 'id' | 'path' | 'archive' | 'project', Field | undefined> = { name: undefined, id: undefined, path: undefined, archive: undefined, project: undefined };
+	private fields: Record<'name' | 'id' | 'path' | 'archive' | 'project' | 'devices', Field | undefined> = {
+		name: undefined, id: undefined, path: undefined, archive: undefined, project: undefined, devices: undefined,
+	};
 	private saveButton?: ButtonComponent;
 	/** Fields the user has edited; errors show only for those (all of them when editing an existing agent). */
 	private touched = new Set<keyof AgentModal['fields']>();
 
 	constructor(app: App, private readonly opts: AgentModalOptions) {
 		super(app);
-		this.creating = !opts.agent;
+		this.creating = opts.isNew ?? !opts.agent;
 		this.draft = opts.agent ? { ...opts.agent } : this.blank();
+		if (opts.isNew && opts.agent) this.idTouched = true;
 	}
 
 	private blank(): AgentConfig {
-		return { id: '', label: '', path: '', kind: this.opts.kind, layout: 'flat', archiveDir: '' };
+		return {
+			id: '',
+			label: '',
+			path: '',
+			kind: this.opts.kind,
+			layout: 'flat',
+			archiveDir: '',
+			devices: this.opts.defaultDevice ? [this.opts.defaultDevice] : undefined,
+		};
 	}
 
 	private get others(): AgentConfig[] {
@@ -114,6 +130,24 @@ export class AgentModal extends Modal {
 		});
 		this.fields.id = id;
 
+		const devices: Field = {
+			setting: new Setting(el)
+				.setName('Devices')
+				.setDesc('Device name(s) this agent applies to (comma-separated). Leave empty to apply to all devices.'),
+		};
+		devices.setting.addText((t) => {
+			devices.input = t;
+			t.setPlaceholder('Macbook-air, work-desktop')
+				.setValue(d.devices ? d.devices.join(', ') : '')
+				.onChange((v) => {
+					const items = v.split(',').map((s) => s.trim()).filter(Boolean);
+					d.devices = items.length > 0 ? items : undefined;
+					this.touched.add('devices');
+					this.validate();
+				});
+		});
+		this.fields.devices = devices;
+
 		const path: Field = { setting: new Setting(el).setName('Skills folder') };
 		path.setting.addText((t) => {
 			path.input = t;
@@ -182,7 +216,17 @@ export class AgentModal extends Modal {
 		});
 		this.fields.archive = archive;
 
-		new Setting(el)
+		const actions = new Setting(el);
+		if (!this.creating && this.opts.onDelete) {
+			actions.addButton((b) => b
+				.setButtonText('Delete')
+				.setWarning()
+				.onClick(async () => {
+					await this.opts.onDelete?.(this.draft);
+					this.close();
+				}));
+		}
+		actions
 			.addButton((b) => b.setButtonText('Cancel').onClick(() => this.close()))
 			.addButton((b) => {
 				this.saveButton = b;
@@ -232,7 +276,10 @@ export class AgentModal extends Modal {
 	private async save(): Promise<void> {
 		if (!this.validate()) return;
 		const d = this.draft;
-		await this.opts.onSave({ ...d, label: d.label.trim(), id: this.creating ? normalizeIdInput(d.id) : d.id });
+		await this.opts.onSave(
+			{ ...d, label: d.label.trim(), id: this.creating ? normalizeIdInput(d.id) : d.id },
+			this.opts.agent?.label,
+		);
 		this.close();
 	}
 }

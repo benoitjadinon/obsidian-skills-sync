@@ -1,6 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { formatAgentNote, isAgentAvailable, isAgentForDevice, parseAgentNote, stateKeyForAgent } from '../src/core/agentNotes';
+import { agentDisplayName, formatAgentNote, isAgentAvailable, isAgentForDevice, parseAgentNote, stateKeyForAgent } from '../src/core/agentNotes';
 import type { AgentConfig } from '../src/core/model';
+
+describe('agentDisplayName', () => {
+	it('shows single device in parentheses', () => {
+		expect(agentDisplayName('Claude Code', ['macbook'])).toBe('Claude Code (macbook)');
+	});
+
+	it('shows "2+" in parentheses when there are 2 or more devices', () => {
+		expect(agentDisplayName('Claude Code', ['macbook', 'desktop'])).toBe('Claude Code (2+)');
+		expect(agentDisplayName('Claude Code', ['macbook', 'desktop', 'server'])).toBe('Claude Code (2+)');
+	});
+
+	it('shows no parentheses when no device is specified', () => {
+		expect(agentDisplayName('Claude Code')).toBe('Claude Code');
+		expect(agentDisplayName('Claude Code', [])).toBe('Claude Code');
+		expect(agentDisplayName('Claude Code', ['  '])).toBe('Claude Code');
+	});
+});
 
 describe('stateKeyForAgent', () => {
 	it('returns bare id-device for single device', () => {

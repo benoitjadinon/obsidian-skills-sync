@@ -51,6 +51,19 @@ views:
 		expect(b.views.find((v) => v.name === 'Undecided')?.filters?.or).toEqual(['note["agent-claude"] == null', 'note["agent-hermes"] == null']);
 		expect(b.views.find((v) => v.name === 'Unassigned')?.filters?.and).toHaveLength(2);
 	});
+	it('updates displayName when an agent column label changes', () => {
+		const base = `properties:
+  note.agent-claude:
+    displayName: Claude Code
+views:
+  - type: table
+    name: Table
+    order:
+      - agent-claude
+`;
+		const updated = parse(ensureAgentColumns(base, { hubFolder: 'Skills', prefix: 'agent-', agents: [{ id: 'claude', label: 'Claude Code (macbook)' }] })) as { properties: Record<string, { displayName: string }> };
+		expect(updated.properties['note.agent-claude']?.displayName).toBe('Claude Code (macbook)');
+	});
 });
 
 describe('plain and note.-prefixed column names (Obsidian saves plain ones)', () => {

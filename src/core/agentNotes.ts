@@ -29,6 +29,19 @@ export function stateKeyForAgent(id: string, devices?: string[]): string {
 	return id;
 }
 
+/**
+ * Agent display name for Skills.base column header:
+ * - 1 device: `${label} (${device})`
+ * - 2+ devices: `${label} (2+)`
+ * - 0 devices: `${label}`
+ */
+export function agentDisplayName(label: string, devices?: string[]): string {
+	const valid = (devices ?? []).map((d) => d.trim()).filter(Boolean);
+	if (valid.length === 0) return label;
+	if (valid.length === 1) return `${label} (${valid[0]})`;
+	return `${label} (2+)`;
+}
+
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 
 export function parseAgentNote(content: string, filename: string): AgentConfig | null {

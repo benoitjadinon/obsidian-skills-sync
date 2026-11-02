@@ -15,7 +15,7 @@ import { Watcher } from './core/watcher';
 import { DEFAULT_SETTINGS, type HubSettings, HubSettingTab } from './settings';
 import { ObsidianResolver } from './ui/resolver';
 import { ConfirmModal, NewSkillModal } from './ui/simpleModals';
-import { isAgentAvailable, parseAgentNote } from './core/agentNotes';
+import { isAgentAvailable, parseAgentNote, agentDisplayName } from './core/agentNotes';
 
 /** Per-computer settings in Obsidian's per-device storage (never synced with the vault). */
 const LOCAL_KEY = 'skills-sync-local';
@@ -622,7 +622,10 @@ export default class AgentSkillsHub extends Plugin {
 	/** Every checkbox column of the base: one per agent, then the projects' columns. */
 	columns(): { id: string; label: string }[] {
 		const agents = this.agents;
-		return [...agents.map((a) => ({ id: a.stateKey ?? a.id, label: a.label })), ...this.settings.projects.flatMap((p) => projectColumns(p, agents))];
+		return [
+			...agents.map((a) => ({ id: a.stateKey ?? a.id, label: agentDisplayName(a.label, a.devices) })),
+			...this.settings.projects.flatMap((p) => projectColumns(p, agents)),
+		];
 	}
 
 	private registerPropertyTypes(): void {

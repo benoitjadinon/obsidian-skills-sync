@@ -72,7 +72,26 @@ export function defaultBase(o: BaseOptions): string {
 export function ensureAgentColumns(text: string, o: BaseOptions): string {
 	const doc = parseDocument(text);
 	const columns = [...o.agents.map((a) => ({ id: a.id, label: a.label })), { id: 'source', label: 'Source' }, { id: 'delete', label: 'To Delete' }];
-	for (const c of columns) {
+	for (const a of o.agents) {
+		const key = doc.hasIn(['properties', col(o, a.id)])
+			? col(o, a.id)
+			: doc.hasIn(['properties', orderCol(o, a.id)])
+				? orderCol(o, a.id)
+				: null;
+		if (!key) {
+			doc.setIn(['properties', col(o, a.id)], doc.createNode({ displayName: a.label }));
+		} else {
+			const current = doc.getIn(['properties', key, 'displayName']);
+			if (current !== a.label) {
+				doc.setIn(['properties', key, 'displayName'], a.label);
+			}
+		}
+	}
+	const metaColumns = [
+		{ id: 'source', label: 'Source' },
+		{ id: 'delete', label: 'To Delete' },
+	];
+	for (const c of metaColumns) {
 		const has = doc.hasIn(['properties', col(o, c.id)]) || doc.hasIn(['properties', orderCol(o, c.id)]);
 		if (!has) doc.setIn(['properties', col(o, c.id)], doc.createNode({ displayName: c.label }));
 	}

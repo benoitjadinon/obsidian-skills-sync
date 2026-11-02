@@ -51,10 +51,11 @@
 
 ### Vaults shared between computers
 
-- `data.json` (`core/settingsStore.ts`) is shared. It holds one list of agents and one of projects, with paths as `~/…`.
-- An agent or project is **available** on a computer when its folder exists there (`plugin.isAvailable`). Sync skips unavailable ones through `liveConfig`, and their note properties are never touched.
-- Saving re-reads `data.json` and merges the lists three ways by id (`mergeOnSave`). Additions from another computer are kept, while edits and removals made here win.
-- Per-computer values live in Obsidian's per-device storage (`skills-sync-local`): the merge tool, and `detected` (this computer's installed agents were added to the shared list on its first start).
+- `data.json` (`core/settingsStore.ts`) is shared. It holds folder paths (`hubFolder`, `basePath`, `agentsFolder`, `agentsBasePath`) and code projects (`projects`).
+- Agent configurations are kept as Markdown notes in `agentsFolder` (`Agents/`), accompanied by `Agents.base`. Notes specify `agent-id`, `agent-path`, `agent-device` (empty for all devices, or specific device name(s)), `agent-layout`, and optional `agent-archive`.
+- A single-device agent generates a device-suffixed column in `Skills.base` (`agent-<id>-<device>`); shared or multi-device agents use `agent-<id>`.
+- An agent or project is **available** on a computer when its device matches and its folder exists there (`plugin.isAvailable`). Sync skips unavailable ones through `liveConfig`, and their note properties are never touched.
+- Per-computer values live in Obsidian's per-device storage (`skills-sync-local`): `deviceName` (computer identifier), the merge tool, and `detected`.
 - Unavailable columns are greyed on screen only. The plugin adds the `ash-unavailable` class to `.bases-td[data-property]` cells (`isUnavailableColumn`) and re-marks them through a MutationObserver per Bases leaf, styled in `styles.css`. Plugins may not inject `<style>` elements (eslint `no-forbidden-elements`).
 - The base file is shared and never renamed. `baseView` selects the one view whose columns the plugin manages.
 

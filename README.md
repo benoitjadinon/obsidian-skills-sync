@@ -24,6 +24,8 @@ Because it's a regular Base, it's also yours to shape:
 
 ## Features
 
+- **Agents are Markdown notes too.** Agents are configured as notes in your `Agents/` folder with their own `Agents.base` view. Add notes, instructions or docs directly to each agent note.
+- **Multi-device and machine targeting.** Agents can be assigned to one or more devices (e.g. `macbook-air`, `work-desktop`), or shared across all devices. When assigned to a single machine, its column is suffixed with the device name (e.g. `Codex (macbook-air)`), so you can manage different skills on different machines without conflict.
 - **One table for every skill and agent.** A ready-made Base lists your skills with one checkbox column per agent, plus views for undecided skills, unassigned skills and conflicts. Its first column, **Skill**, shows each skill's folder name and opens its `SKILL.md` when clicked (every file is named `SKILL`, so the file name alone doesn't tell skills apart). Tick a box to share a skill with that agent, untick it to remove it there.
 - **One vault, several computers.** Share your vault between computers (Obsidian Sync, git, Syncthing…) and every computer keeps its own agents in sync from the same skill notes and the same Base. Each computer only syncs the agents and projects installed on it; the others are greyed out in the Base and marked *not available on this machine* in settings. Even dedicated skill manager apps rarely handle that.
 - **Three states per agent.** Ticked: shared. Unticked: removed from that agent (or moved to its archive). Empty: undecided, so the plugin never touches that agent's copy. New agents and new skills start undecided, so adding an agent never floods it with skills.
@@ -39,9 +41,11 @@ Because it's a regular Base, it's also yours to shape:
 
 1. Install **Skills Sync** from **Settings → Community plugins → Browse**, and enable it. It runs on desktop only.
 2. Open **Settings → Skills Sync**:
+   - **This computer's name**: a unique local name for this computer (e.g. `macbook-air`).
    - **Skills folder**: the vault folder that holds one subfolder per skill (default `Skills`).
-   - **Agents**: the agents installed on your computer are already listed. Each one is tagged **Preset** (created from a known agent) or **Custom**, with preset agents first. Removing an agent only stops syncing it; its files are never touched, and you can choose to also remove its property from all skill notes (and its column from the base). Use **Add agent…** to add others: pick one of the known agents or enter your own skills folder. Use **Add project…** for a code project (see [Projects](#projects)).
-3. Run the command **Create or update the skills base**. It creates `Skills/Skills.base` (or adds the agent columns to an existing base) and opens it.
+   - **Agents folder**: the vault folder holding agent notes (default `Agents`).
+   - **Agents**: configure your agents or click **Add to agents** next to any detected agents on this machine. You can also edit their `.md` files directly in `Agents/`.
+3. Run the command **Create or update the skills base** (and **Create or update the agents base**).
 4. The first sync imports every skill found in your agents' folders. Each one is ticked for the agents that already had it and left empty for the others. From then on, tick and untick boxes in the base.
 
 Sync runs on startup, a moment after an agent's folder changes, and a moment after you edit a skill in Obsidian. You can also run **Sync now**, or click the ribbon icon. Turn off **Sync automatically** in settings to sync only on demand.

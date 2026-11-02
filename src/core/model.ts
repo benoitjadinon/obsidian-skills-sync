@@ -10,6 +10,8 @@ export interface AgentConfig {
 	layout: Layout;
 	/** Folder (relative to path) holding archived skills; '' = no archive. */
 	archiveDir: string;
+	/** Devices this agent config applies to; empty/absent = all devices. */
+	devices?: string[];
 	/** Id of the known agent (preset) this one was created from; absent for custom agents. */
 	preset?: string;
 	/** Skills folder relative to a code project (e.g. .claude/skills); absent when the agent has none. */
@@ -35,6 +37,8 @@ export interface SyncConfig {
 	hubDir: string;
 	prefix: string;
 	agents: AgentConfig[];
+	/** Current machine's device name; when provided, agents for other devices are skipped. */
+	currentDevice?: string;
 	autoPullExternal: 'ask' | 'auto';
 	/** Where deleted agent copies go (default ~/.skills-sync-trash). */
 	trashDir?: string;

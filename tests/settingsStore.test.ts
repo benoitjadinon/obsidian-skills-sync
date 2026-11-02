@@ -5,6 +5,13 @@ import type { AgentConfig } from '../src/core/model';
 const agent = (id: string, label = id): AgentConfig => ({ id, label, path: `~/.${id}/skills`, kind: 'agent', layout: 'flat', archiveDir: '' });
 const project = (id: string) => ({ id, label: id, root: `~/w/${id}`, perAgentColumns: false });
 
+describe('DEFAULT_SETTINGS', () => {
+	it('includes default agentsFolder and agentsBasePath', () => {
+		expect(DEFAULT_SETTINGS.agentsFolder).toBe('Agents');
+		expect(DEFAULT_SETTINGS.agentsBasePath).toBe('Agents/Agents.base');
+	});
+});
+
 describe('migrateSettings', () => {
 	it('keeps v1 flat settings, moving the merge tool out', () => {
 		const m = migrateSettings({ hubFolder: 'AI/skills', agents: [agent('claude')], mergeCommand: 'code', initialized: true });

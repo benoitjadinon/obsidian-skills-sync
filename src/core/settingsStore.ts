@@ -5,6 +5,10 @@ export interface StoredSettings {
 	hubFolder: string;
 	propPrefix: string;
 	basePath: string;
+	/** Folder in vault where agent notes are kept. */
+	agentsFolder: string;
+	/** Path in vault to the agents base file. */
+	agentsBasePath: string;
 	/** Base view whose columns the plugin manages; '' = the first table view. */
 	baseView: string;
 	/** Paths may start with "~"; an agent is available on a computer when its folder exists there. */
@@ -27,6 +31,8 @@ export const DEFAULT_SETTINGS: HubSettings = {
 	hubFolder: 'Skills',
 	propPrefix: 'agent-',
 	basePath: 'Skills/Skills.base',
+	agentsFolder: 'Agents',
+	agentsBasePath: 'Agents/Agents.base',
 	baseView: '',
 	agents: [],
 	projects: [],
@@ -36,7 +42,7 @@ export const DEFAULT_SETTINGS: HubSettings = {
 	mergeCommand: '',
 };
 
-const STORED_KEYS = ['hubFolder', 'propPrefix', 'basePath', 'baseView', 'agents', 'projects', 'autoPullExternal', 'autoSync', 'deleted'] as const;
+const STORED_KEYS = ['hubFolder', 'propPrefix', 'basePath', 'agentsFolder', 'agentsBasePath', 'baseView', 'agents', 'projects', 'autoPullExternal', 'autoSync', 'deleted'] as const;
 
 function unionById<T extends { id: string }>(lists: T[][]): T[] {
 	const out: T[] = [];

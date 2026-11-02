@@ -150,7 +150,55 @@ export function listTableViews(text: string): string[] {
 }
 
 /** The plugin's own property suffixes (never greyed). */
-const META = ['skill-keys', 'source', 'path', 'folder', 'conflict', 'delete'];
+const META = ['skill-keys', 'source', 'path', 'folder', 'conflict', 'delete', 'id', 'device', 'layout', 'archive', 'availability', 'project-dir'];
+
+export function defaultAgentsBase(agentsFolder: string, prefix: string = 'agent-'): string {
+	const order = ['file.name', `${prefix}id`, `${prefix}device`, `${prefix}path`, `${prefix}layout`, `${prefix}availability`];
+	const properties: Record<string, { displayName: string }> = {
+		[`note.${prefix}id`]: { displayName: 'ID' },
+		[`note.${prefix}device`]: { displayName: 'Device' },
+		[`note.${prefix}path`]: { displayName: 'Path' },
+		[`note.${prefix}layout`]: { displayName: 'Layout' },
+		[`note.${prefix}availability`]: { displayName: 'Availability' },
+	};
+	return stringify({
+		filters: { and: [`file.inFolder(${JSON.stringify(agentsFolder)})`] },
+		properties,
+		views: [{ type: 'table', name: 'All agents', order }],
+	});
+}
+
+export function ensureAgentsBase(text: string, agentsFolder: string, prefix: string = 'agent-'): string {
+	const doc = parseDocument(text);
+	const columns = [
+		{ id: `${prefix}id`, label: 'ID' },
+		{ id: `${prefix}device`, label: 'Device' },
+		{ id: `${prefix}path`, label: 'Path' },
+		{ id: `${prefix}layout`, label: 'Layout' },
+		{ id: `${prefix}availability`, label: 'Availability' },
+	];
+	for (const c of columns) {
+		const has = doc.hasIn(['properties', `note.${c.id}`]) || doc.hasIn(['properties', c.id]);
+		if (!has) doc.setIn(['properties', `note.${c.id}`], doc.createNode({ displayName: c.label }));
+	}
+	const views = doc.get('views');
+	if (isSeq(views)) {
+		for (const view of views.items) {
+			if (!isMap(view) || view.get('type') !== 'table') continue;
+			let order = view.get('order');
+			if (!isSeq(order)) {
+				order = doc.createNode([]);
+				view.set('order', order);
+			}
+			if (isSeq(order)) {
+				const seen = dedupeOrder(order);
+				for (const c of columns) if (!seen.has(c.id)) order.add(doc.createNode(c.id));
+			}
+		}
+	}
+	return doc.toString();
+}
+
 
 /**
  * Whether a base cell's property (e.g. "note.agent-hermes") is an agent or project column that is

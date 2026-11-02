@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { defaultBase, ensureAgentColumns, removeAgentColumn } from '../src/core/base';
+import { defaultAgentsBase, defaultBase, ensureAgentColumns, ensureAgentsBase, removeAgentColumn } from '../src/core/base';
 
 const opts = (ids: string[]) => ({ hubFolder: 'Skills', prefix: 'agent-', agents: ids.map((id) => ({ id, label: id.toUpperCase() })) });
 
@@ -210,3 +210,36 @@ describe('To Delete display name', () => {
 		expect((parse(ensureAgentColumns(custom, o)) as { properties: Record<string, { displayName: string }> }).properties['note.agent-delete']?.displayName).toBe('Bin');
 	});
 });
+
+describe('defaultAgentsBase', () => {
+	it('creates base filtering to agentsFolder with standard agent columns', () => {
+		const b = parse(defaultAgentsBase('Agents')) as Base;
+		expect(b.filters.and).toEqual(['file.inFolder("Agents")']);
+		expect(b.properties['note.agent-id']?.displayName).toBe('ID');
+		expect(b.properties['note.agent-device']?.displayName).toBe('Device');
+		expect(b.properties['note.agent-path']?.displayName).toBe('Path');
+		expect(b.properties['note.agent-layout']?.displayName).toBe('Layout');
+		expect(b.properties['note.agent-availability']?.displayName).toBe('Availability');
+		expect(b.views[0]?.order).toEqual(['file.name', 'agent-id', 'agent-device', 'agent-path', 'agent-layout', 'agent-availability']);
+	});
+});
+
+describe('ensureAgentsBase', () => {
+	it('adds missing properties and columns to existing base', () => {
+		const minimal = `filters:
+  and:
+    - file.inFolder("Agents")
+views:
+  - type: table
+    name: All agents
+    order:
+      - file.name
+`;
+		const updated = parse(ensureAgentsBase(minimal, 'Agents')) as Base;
+		expect(updated.properties['note.agent-id']?.displayName).toBe('ID');
+		expect(updated.properties['note.agent-availability']?.displayName).toBe('Availability');
+		expect(updated.views[0]?.order).toContain('agent-id');
+		expect(updated.views[0]?.order).toContain('agent-availability');
+	});
+});
+

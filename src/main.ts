@@ -201,6 +201,12 @@ export default class AgentSkillsHub extends Plugin {
 		return file instanceof TFile ? listTableViews(await this.app.vault.cachedRead(file)) : [];
 	}
 
+	/** Table views of the agents base file, for the view selector. */
+	async agentsBaseViews(): Promise<string[]> {
+		const file = this.app.vault.getAbstractFileByPath(this.agentsBasePath());
+		return file instanceof TFile ? listTableViews(await this.app.vault.cachedRead(file)) : [];
+	}
+
 	/** The base file (shared by every computer). */
 	basePath(): string {
 		return normalizePath(this.settings.basePath);
@@ -215,7 +221,7 @@ export default class AgentSkillsHub extends Plugin {
 		const path = this.agentsBasePath();
 		let file = this.app.vault.getAbstractFileByPath(path);
 		if (file instanceof TFile) {
-			await this.app.vault.process(file, (t) => ensureAgentsBase(t, normalizePath(s.agentsFolder), s.propPrefix));
+			await this.app.vault.process(file, (t) => ensureAgentsBase(t, normalizePath(s.agentsFolder), s.propPrefix, s.agentsBaseView));
 		} else {
 			const dir = path.split('/').slice(0, -1).join('/');
 			if (dir && !this.app.vault.getAbstractFileByPath(dir)) await this.app.vault.createFolder(dir);

@@ -174,7 +174,7 @@ export function defaultAgentsBase(agentsFolder: string, prefix: string = 'agent-
 	});
 }
 
-export function ensureAgentsBase(text: string, agentsFolder: string, prefix: string = 'agent-'): string {
+export function ensureAgentsBase(text: string, agentsFolder: string, prefix: string = 'agent-', view?: string): string {
 	const doc = parseDocument(text);
 	const extFilter = 'file.ext == "md"';
 	const propFilter = `file.hasProperty(${JSON.stringify(`${prefix}id`)})`;
@@ -233,12 +233,15 @@ export function ensureAgentsBase(text: string, agentsFolder: string, prefix: str
 	}
 	const views = doc.get('views');
 	if (isSeq(views)) {
-		for (const view of views.items) {
-			if (!isMap(view) || view.get('type') !== 'table') continue;
-			let order = view.get('order');
+		const tables = views.items.filter((v) => isMap(v) && v.get('type') === 'table');
+		const managed = tables.find((v) => isMap(v) && view && v.get('name') === view) ?? tables[0];
+		for (const v of views.items) {
+			if (!isMap(v) || v.get('type') !== 'table') continue;
+			if (v !== managed) continue;
+			let order = v.get('order');
 			if (!isSeq(order)) {
 				order = doc.createNode([]);
-				view.set('order', order);
+				v.set('order', order);
 			}
 			if (isSeq(order)) {
 				const seen = dedupeOrder(order);

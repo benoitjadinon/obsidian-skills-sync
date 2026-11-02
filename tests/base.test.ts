@@ -245,5 +245,23 @@ views:
 		expect(updated.views[0]?.order).toContain('agent-id');
 		expect(updated.views[0]?.order).toContain('agent-availability');
 	});
+	it('adds columns only to the chosen view when multiple table views exist', () => {
+		const base = `filters:
+  and:
+    - file.inFolder("Agents")
+views:
+  - type: table
+    name: View A
+    order:
+      - file.name
+  - type: table
+    name: View B
+    order:
+      - file.name
+`;
+		const updated = parse(ensureAgentsBase(base, 'Agents', 'agent-', 'View B')) as Base;
+		expect(updated.views[0]?.order).toEqual(['file.name']);
+		expect(updated.views[1]?.order).toContain('agent-id');
+	});
 });
 

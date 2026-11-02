@@ -11,6 +11,8 @@ export interface StoredSettings {
 	agentsBasePath: string;
 	/** Base view whose columns the plugin manages; '' = the first table view. */
 	baseView: string;
+	/** Agents base view whose columns the plugin manages; '' = the first table view. */
+	agentsBaseView: string;
 	/** Paths may start with "~"; an agent is available on a computer when its folder exists there. */
 	agents: AgentConfig[];
 	/** Code projects; available on a computer when the project folder exists there. */
@@ -34,6 +36,7 @@ export const DEFAULT_SETTINGS: HubSettings = {
 	agentsFolder: 'Agents',
 	agentsBasePath: 'Agents/Agents.base',
 	baseView: '',
+	agentsBaseView: '',
 	agents: [],
 	projects: [],
 	autoPullExternal: 'ask',
@@ -42,7 +45,7 @@ export const DEFAULT_SETTINGS: HubSettings = {
 	mergeCommand: '',
 };
 
-const STORED_KEYS = ['hubFolder', 'propPrefix', 'basePath', 'agentsFolder', 'agentsBasePath', 'baseView', 'agents', 'projects', 'autoPullExternal', 'autoSync', 'deleted'] as const;
+const STORED_KEYS = ['hubFolder', 'propPrefix', 'basePath', 'agentsFolder', 'agentsBasePath', 'baseView', 'agentsBaseView', 'agents', 'projects', 'autoPullExternal', 'autoSync', 'deleted'] as const;
 
 function unionById<T extends { id: string }>(lists: T[][]): T[] {
 	const out: T[] = [];

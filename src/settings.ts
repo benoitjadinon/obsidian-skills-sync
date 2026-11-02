@@ -16,9 +16,10 @@ import { formatAgentNote, isAgentForDevice } from './core/agentNotes';
 export { DEFAULT_SETTINGS, type HubSettings } from './core/settingsStore';
 
 export class HubSettingTab extends PluginSettingTab {
-	private viewSetting?: Setting;
-	private viewDropdown?: DropdownComponent;
-	private viewRenderToken = 0;
+	private skillsViewDropdown?: DropdownComponent;
+	private skillsViewRenderToken = 0;
+	private agentsViewDropdown?: DropdownComponent;
+	private agentsViewRenderToken = 0;
 	constructor(app: App, private readonly plugin: AgentSkillsHub) {
 		super(app, plugin);
 	}
@@ -31,24 +32,47 @@ export class HubSettingTab extends PluginSettingTab {
 		await this.plugin.saveSettings();
 	}
 
-	/** Fill the view selector from the base file (first table view by default). */
-	private async renderViewOptions(): Promise<void> {
-		const d = this.viewDropdown;
+	/** Fill the skills view selector from the base file (first table view by default). */
+	private async renderSkillsViewOptions(): Promise<void> {
+		const d = this.skillsViewDropdown;
 		if (!d) return;
 		const s = this.plugin.settings;
-		const token = ++this.viewRenderToken;
+		const token = ++this.skillsViewRenderToken;
 		const views = await this.plugin.baseViews();
 		// The tab may have re-rendered meanwhile: only the latest call fills the list.
-		if (token !== this.viewRenderToken || d !== this.viewDropdown) return;
+		if (token !== this.skillsViewRenderToken || d !== this.skillsViewDropdown) return;
 		d.selectEl.empty();
 		if (views.length === 0) {
 			d.addOption('', 'No base yet');
+			d.setValue('');
 			d.setDisabled(true);
 			return;
 		}
-		d.setDisabled(false);
 		for (const v of views) d.addOption(v, v);
-		d.setValue(views.includes(s.baseView) ? s.baseView : (views[0] ?? ''));
+		const current = views.includes(s.baseView) ? s.baseView : (views[0] ?? '');
+		d.setValue(current);
+		d.setDisabled(views.length <= 1);
+	}
+
+	/** Fill the agents view selector from the agents base file (first table view by default). */
+	private async renderAgentsViewOptions(): Promise<void> {
+		const d = this.agentsViewDropdown;
+		if (!d) return;
+		const s = this.plugin.settings;
+		const token = ++this.agentsViewRenderToken;
+		const views = await this.plugin.agentsBaseViews();
+		if (token !== this.agentsViewRenderToken || d !== this.agentsViewDropdown) return;
+		d.selectEl.empty();
+		if (views.length === 0) {
+			d.addOption('', 'No base yet');
+			d.setValue('');
+			d.setDisabled(true);
+			return;
+		}
+		for (const v of views) d.addOption(v, v);
+		const current = views.includes(s.agentsBaseView) ? s.agentsBaseView : (views[0] ?? '');
+		d.setValue(current);
+		d.setDisabled(views.length <= 1);
 	}
 
 	/** Re-render when the settings changed on disk (another computer's profile arrived). */
@@ -107,7 +131,7 @@ export class HubSettingTab extends PluginSettingTab {
 			.setDesc('Vault path ending in .base, shared by every computer. Created if missing; an existing base gets the missing columns.');
 		base.addText((t) => (baseText = t).setValue(s.basePath).onChange((v) => this.saveIfValid(base, t, validateBasePath(v), async () => {
 			s.basePath = normalizePath(v.trim());
-			await this.renderViewOptions();
+			await this.renderSkillsViewOptions();
 		})))
 			.addButton((b) => b.setButtonText('Create or update').onClick(async () => {
 				if (hubText) {
@@ -126,21 +150,21 @@ export class HubSettingTab extends PluginSettingTab {
 				}
 				await this.plugin.saveSettings();
 				await this.plugin.ensureBase(true);
-				await this.renderViewOptions();
+				await this.renderSkillsViewOptions();
 			}));
 
-		this.viewSetting = new Setting(containerEl)
+		new Setting(containerEl)
 			.setName('Skills base view')
 			.setDesc('The view in the skills base that gets the agent and project columns. Your other views are left alone.')
 			.addDropdown((d) => {
-				this.viewDropdown = d;
+				this.skillsViewDropdown = d;
 				d.onChange(async (v) => {
 					s.baseView = v;
 					await this.plugin.saveSettings();
 					await this.plugin.ensureBase();
 				});
 			});
-		void this.renderViewOptions();
+		void this.renderSkillsViewOptions();
 
 		let agentsText: TextComponent | undefined;
 		const agentsFolder = new Setting(containerEl)
@@ -155,8 +179,9 @@ export class HubSettingTab extends PluginSettingTab {
 		const agentsBase = new Setting(containerEl)
 			.setName('Agents base file')
 			.setDesc('Vault path ending in .base for the agents database view.')
-			.addText((t) => (agentsBaseText = t).setValue(s.agentsBasePath).onChange((v) => this.saveIfValid(agentsBase, t, validateBasePath(v), () => {
+			.addText((t) => (agentsBaseText = t).setValue(s.agentsBasePath).onChange((v) => this.saveIfValid(agentsBase, t, validateBasePath(v), async () => {
 				s.agentsBasePath = normalizePath(v.trim());
+				await this.renderAgentsViewOptions();
 			})))
 			.addButton((b) => b.setButtonText('Create or update').onClick(async () => {
 				if (agentsText) {
@@ -175,7 +200,21 @@ export class HubSettingTab extends PluginSettingTab {
 				}
 				await this.plugin.saveSettings();
 				await this.plugin.ensureAgentsBase(true);
+				await this.renderAgentsViewOptions();
 			}));
+
+		new Setting(containerEl)
+			.setName('Agents base view')
+			.setDesc('The view in the agents base that gets the agent property columns. Your other views are left alone.')
+			.addDropdown((d) => {
+				this.agentsViewDropdown = d;
+				d.onChange(async (v) => {
+					s.agentsBaseView = v;
+					await this.plugin.saveSettings();
+					await this.plugin.ensureAgentsBase();
+				});
+			});
+		void this.renderAgentsViewOptions();
 		new Setting(containerEl)
 			.setName('Sync automatically')
 			.setDesc('Sync on startup, when agent folders change, and when skills are edited in the vault.')
